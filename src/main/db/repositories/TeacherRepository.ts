@@ -1,5 +1,5 @@
 import BaseRepository from './BaseRepository'
-import { Teacher } from '@shared/types/database'
+import { Course, CourseType, Teacher } from '@shared/types/database'
 import { TeacherCreateDto, TeacherUpdateDto } from '@shared/types/dto'
 
 export default class TeacherRepository extends BaseRepository {
@@ -99,5 +99,97 @@ export default class TeacherRepository extends BaseRepository {
       ORDER BY t.last_name, t.first_name
     `)
     return statement.all(subject) as Teacher[]
+  }
+
+  getTeacherCourses(teacherId: number): Course[] {
+    const statement = this.prepare(`
+      SELECT c.* FROM courses c
+      JOIN teacher_courses tc ON c.id = tc.course_id
+      WHERE tc.teacher_id = ?
+      ORDER BY c.name
+    `)
+    return statement.all(teacherId) as Course[]
+  }
+
+  assignCourse(teacherId: number, courseId: number, type: CourseType = 'both'): boolean {
+    try {
+      // Remove existing assignment for this course
+      this.removeCourse(teacherId, courseId)
+
+      const statement = this.prepare(`
+        INSERT INTO teacher_courses (teacher_id, course_id, type) VALUES (?, ?, ?)
+      `)
+      statement.run(teacherId, courseId, type)
+      return true
+    } catch (err: any) {
+      console.error('Error assigning course to teacher:', err)
+      throw err
+    }
+  }
+
+  removeCourse(teacherId: number, courseId: number): boolean {
+    const statement = this.prepare(`
+      DELETE FROM teacher_courses 
+      WHERE teacher_id = ? AND course_id = ?
+    `)
+    const result = statement.run(teacherId, courseId)
+    return result.changes > 0
+  }
+
+  getAvailableCoursesForTeacher(teacherId: number): Course[] {
+    const statement = this.prepare(`
+      SELECT c.* FROM courses c
+      WHERE c.id NOT IN (
+        SELECT tc.course_id FROM teacher_courses tc 
+        WHERE tc.teacher_id = ?
+      )
+      ORDER BY c.name
+    `)
+    return statement.all(teacherId) as Course[]
+  }
+
+  getTeacherCoursesWithTypes(teacherId: number): (Course & { type: CourseType })[] {
+    try {
+      const statement = this.prepare(`
+        SELECT c.*, tc.type FROM courses c
+        JOIN teacher_courses tc ON c.id = tc.course_id
+        WHERE tc.teacher_id = ?
+        ORDER BY c.name
+      `)
+      return statement.all(teacherId) as (Course & { type: CourseType })[]
+    } catch (error) {
+      console.error('Repository error in getTeacherCoursesWithTypes:', error)
+      return []
+    }
+  }
+
+  updateCourseType(teacherId: number, courseId: number, type: CourseType): boolean {
+    try {
+      const statement = this.prepare(`
+        UPDATE teacher_courses 
+        SET type = ? 
+        WHERE teacher_id = ? AND course_id = ?
+      `)
+      const result = statement.run(type, teacherId, courseId)
+      return result.changes > 0
+    } catch (error) {
+      console.error('Error updating course type:', error)
+      throw error
+    }
+  }
+
+  getTeacherWithCourseTypes(
+    teacherId: number
+  ): (Teacher & { courses: (Course & { type: CourseType })[] }) | null {
+    try {
+      const teacher = this.getById(teacherId)
+      if (!teacher) return null
+
+      const courses = this.getTeacherCoursesWithTypes(teacherId)
+      return { ...teacher, courses }
+    } catch (error) {
+      console.error('Repository error in getTeacherWithCourseTypes:', error)
+      return null
+    }
   }
 }

@@ -22,7 +22,27 @@ const Classes = () => {
     try {
       setLoading(true)
       const data = await window.api.classes.getAll()
-      setClasses(data)
+
+      // Load course count for each class
+      const classesWithCourses = await Promise.all(
+        data.map(async (classItem) => {
+          try {
+            const courses = await window.api.courses.getByClassId(classItem.id)
+            return {
+              ...classItem,
+              courseCount: courses.length
+            }
+          } catch (error) {
+            console.error(`Failed to load courses for class ${classItem.id}:`, error)
+            return {
+              ...classItem,
+              courseCount: 0
+            }
+          }
+        })
+      )
+
+      setClasses(classesWithCourses)
     } catch (error) {
       console.error('Failed to load classes:', error)
     } finally {
@@ -33,7 +53,11 @@ const Classes = () => {
   const handleCreateClass = async (data: any) => {
     try {
       const newClass = await window.api.classes.create(data)
-      setClasses([...classes, newClass])
+      const newClassWithCount = {
+        ...newClass,
+        courseCount: 0 // New classes start with 0 courses
+      }
+      setClasses([...classes, newClassWithCount])
       setIsDialogOpen(false)
     } catch (error) {
       console.error('Failed to create class:', error)
@@ -50,7 +74,13 @@ const Classes = () => {
 
     try {
       await window.api.classes.update(editingClass.id, data)
-      setClasses(classes.map((c) => (c.id === editingClass.id ? { ...c, ...data } : c)))
+      setClasses(
+        classes.map((c) =>
+          c.id === editingClass.id
+            ? { ...c, ...data } // This preserves courseCount
+            : c
+        )
+      )
       setIsDialogOpen(false)
       setEditingClass(null)
     } catch (error) {

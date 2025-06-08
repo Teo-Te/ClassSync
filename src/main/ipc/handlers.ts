@@ -4,12 +4,17 @@ import TeacherRepository from '../db/repositories/TeacherRepository'
 import CourseRepository from '../db/repositories/CourseRepository'
 import ScheduleRepository from '../db/repositories/ScheduleRepository'
 import { generateSchedule } from '../services/schedulerService'
+import { AssignmentType, CourseType } from '@shared/types/database'
+import RoomRepository from '../db/repositories/RoomRepository'
+import SettingsRepository from '../db/repositories/SettingsRepository'
 
 // Initialize repositories
 const classRepository = new ClassRepository()
 const teacherRepository = new TeacherRepository()
 const courseRepository = new CourseRepository()
 const scheduleRepository = new ScheduleRepository()
+const roomRepository = new RoomRepository()
+const settingsRepository = new SettingsRepository()
 
 export function setupIpcHandlers(): void {
   // Class handlers
@@ -150,15 +155,6 @@ export function setupIpcHandlers(): void {
     }
   })
 
-  ipcMain.handle('courses:assignTeacher', async (_, courseId: number, teacherId: number) => {
-    try {
-      return courseRepository.assignTeacher(courseId, teacherId)
-    } catch (error) {
-      console.error(`Error in courses:assignTeacher for courseId ${courseId}`, error)
-      throw new Error(`Failed to assign teacher to course with id ${courseId}`)
-    }
-  })
-
   ipcMain.handle('courses:removeTeacher', async (_, courseId: number, teacherId: number) => {
     try {
       return courseRepository.removeTeacher(courseId, teacherId)
@@ -214,15 +210,6 @@ export function setupIpcHandlers(): void {
     }
   })
 
-  ipcMain.handle('courses:getAssignedTeachers', async (_, courseId: number) => {
-    try {
-      return courseRepository.getAssignedTeachers(courseId)
-    } catch (error) {
-      console.error(`Error in courses:getAssignedTeachers for courseId ${courseId}`, error)
-      throw new Error(`Failed to get assigned teachers for course with id ${courseId}`)
-    }
-  })
-
   ipcMain.handle('courses:getCoursesWithTeachers', async (_, classId: number) => {
     try {
       return courseRepository.getCoursesWithTeachers(classId)
@@ -231,4 +218,298 @@ export function setupIpcHandlers(): void {
       throw new Error(`Failed to get courses with teachers for class with id ${classId}`)
     }
   })
+
+  // src/main/ipc/handlers.ts - Add these new handlers
+  ipcMain.handle('courses:getAll', async () => {
+    try {
+      return courseRepository.getAll()
+    } catch (error) {
+      console.error('Error in courses:getAll', error)
+      throw new Error('Failed to get all courses')
+    }
+  })
+
+  ipcMain.handle('courses:assignToClass', async (_, courseId: number, classId: number) => {
+    try {
+      return courseRepository.assignToClass(courseId, classId)
+    } catch (error) {
+      console.error(
+        `Error in courses:assignToClass for courseId ${courseId}, classId ${classId}`,
+        error
+      )
+      throw new Error(`Failed to assign course ${courseId} to class ${classId}`)
+    }
+  })
+
+  ipcMain.handle('courses:removeFromClass', async (_, courseId: number, classId: number) => {
+    try {
+      return courseRepository.removeFromClass(courseId, classId)
+    } catch (error) {
+      console.error(
+        `Error in courses:removeFromClass for courseId ${courseId}, classId ${classId}`,
+        error
+      )
+      throw new Error(`Failed to remove course ${courseId} from class ${classId}`)
+    }
+  })
+
+  ipcMain.handle('courses:getAvailableForClass', async (_, classId: number) => {
+    try {
+      return courseRepository.getAvailableForClass(classId)
+    } catch (error) {
+      console.error(`Error in courses:getAvailableForClass for classId ${classId}`, error)
+      throw new Error(`Failed to get available courses for class ${classId}`)
+    }
+  })
+
+  ipcMain.handle('courses:update', async (_, id: number, data: any) => {
+    try {
+      return courseRepository.update(id, data)
+    } catch (error) {
+      console.error(`Error in courses:update for id ${id}`, error)
+      throw new Error(`Failed to update course with id ${id}`)
+    }
+  })
+
+  // src/main/ipc/handlers.ts - Add these new handlers
+  ipcMain.handle('teachers:getCourses', async (_, teacherId: number) => {
+    try {
+      return teacherRepository.getTeacherCourses(teacherId)
+    } catch (error) {
+      console.error(`Error in teachers:getCourses for teacherId ${teacherId}`, error)
+      throw new Error(`Failed to get courses for teacher ${teacherId}`)
+    }
+  })
+
+  ipcMain.handle('teachers:removeCourse', async (_, teacherId: number, courseId: number) => {
+    try {
+      return teacherRepository.removeCourse(teacherId, courseId)
+    } catch (error) {
+      console.error(
+        `Error in teachers:removeCourse for teacherId ${teacherId}, courseId ${courseId}`,
+        error
+      )
+      throw new Error(`Failed to remove course ${courseId} from teacher ${teacherId}`)
+    }
+  })
+
+  ipcMain.handle('teachers:getAvailableCourses', async (_, teacherId: number) => {
+    try {
+      return teacherRepository.getAvailableCoursesForTeacher(teacherId)
+    } catch (error) {
+      console.error(`Error in teachers:getAvailableCourses for teacherId ${teacherId}`, error)
+      throw new Error(`Failed to get available courses for teacher ${teacherId}`)
+    }
+  })
+
+  ipcMain.handle('courses:getAssignedTeachers', async (_, courseId: number) => {
+    try {
+      const teachers = courseRepository.getAssignedTeachers(courseId)
+      return teachers
+    } catch (error) {
+      console.error('Error in courses:getAssignedTeachers', error)
+      throw new Error('Failed to get assigned teachers')
+    }
+  })
+
+  ipcMain.handle(
+    'courses:getEligibleTeachers',
+    async (_, courseId: number, type?: AssignmentType) => {
+      try {
+        const teachers = courseRepository.getEligibleTeachers(courseId, type)
+        return teachers
+      } catch (error) {
+        console.error('Error in courses:getEligibleTeachers', error)
+        throw new Error('Failed to get eligible teachers')
+      }
+    }
+  )
+
+  // Assign teacher with type
+  ipcMain.handle(
+    'courses:assignTeacher',
+    async (_, courseId: number, teacherId: number, type: AssignmentType) => {
+      try {
+        const result = courseRepository.assignTeacher(courseId, teacherId, type)
+        return result
+      } catch (error) {
+        console.error('Error in courses:assignTeacher', error)
+        throw new Error('Failed to assign teacher')
+      }
+    }
+  )
+
+  // Remove teacher by type
+  ipcMain.handle(
+    'courses:removeTeacherByType',
+    async (_, courseId: number, type: AssignmentType) => {
+      try {
+        const result = courseRepository.removeTeacherByType(courseId, type)
+        return result
+      } catch (error) {
+        console.error('Error in courses:removeTeacherByType', error)
+        throw new Error('Failed to remove teacher')
+      }
+    }
+  )
+
+  // Get courses with teacher details
+  ipcMain.handle('courses:getCoursesWithTeacherDetails', async (_, classId: number) => {
+    try {
+      const courses = courseRepository.getCoursesWithTeacherDetails(classId)
+      return courses
+    } catch (error) {
+      console.error('Error in courses:getCoursesWithTeacherDetails', error)
+      throw new Error('Failed to get courses with teacher details')
+    }
+  })
+
+  // Teacher course management with types
+  ipcMain.handle('teachers:getCoursesWithTypes', async (_, teacherId: number) => {
+    try {
+      const courses = teacherRepository.getTeacherCoursesWithTypes(teacherId)
+      return courses
+    } catch (error) {
+      console.error('Error in teachers:getCoursesWithTypes', error)
+      throw new Error('Failed to get teacher courses with types')
+    }
+  })
+
+  ipcMain.handle(
+    'teachers:assignCourse',
+    async (_, teacherId: number, courseId: number, type: CourseType) => {
+      try {
+        const result = teacherRepository.assignCourse(teacherId, courseId, type)
+        return result
+      } catch (error) {
+        console.error('Error in teachers:assignCourse', error)
+        throw new Error('Failed to assign course to teacher')
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'teachers:updateCourseType',
+    async (_, teacherId: number, courseId: number, type: CourseType) => {
+      try {
+        const result = teacherRepository.updateCourseType(teacherId, courseId, type)
+        return result
+      } catch (error) {
+        console.error('Error in teachers:updateCourseType', error)
+        throw new Error('Failed to update course type')
+      }
+    }
+  )
+
+  ipcMain.handle('rooms:getAll', async () => {
+    try {
+      const rooms = roomRepository.getAll()
+
+      return rooms
+    } catch (error) {
+      console.error('Error in rooms:getAll', error)
+      throw new Error('Failed to get rooms')
+    }
+  })
+
+  ipcMain.handle('rooms:getById', async (_, id: number) => {
+    try {
+      const room = roomRepository.getById(id)
+
+      return room
+    } catch (error) {
+      console.error('Error in rooms:getById', error)
+      throw new Error('Failed to get room')
+    }
+  })
+
+  ipcMain.handle('rooms:getByType', async (_, type: string) => {
+    try {
+      const rooms = roomRepository.getByType(type as any)
+
+      return rooms
+    } catch (error) {
+      console.error('Error in rooms:getByType', error)
+      throw new Error('Failed to get rooms by type')
+    }
+  })
+
+  ipcMain.handle('rooms:create', async (_, data: any) => {
+    try {
+      const room = roomRepository.create(data)
+
+      return room
+    } catch (error) {
+      console.error('Error in rooms:create', error)
+      throw new Error('Failed to create room')
+    }
+  })
+
+  ipcMain.handle('rooms:update', async (_, id: number, data: any) => {
+    try {
+      const success = roomRepository.update(id, data)
+
+      return success
+    } catch (error) {
+      console.error('Error in rooms:update', error)
+      throw new Error('Failed to update room')
+    }
+  })
+
+  ipcMain.handle('rooms:delete', async (_, id: number) => {
+    try {
+      const success = roomRepository.delete(id)
+
+      return success
+    } catch (error) {
+      console.error('Error in rooms:delete', error)
+      throw new Error('Failed to delete room')
+    }
+  })
+
+  ipcMain.handle('rooms:getStats', async () => {
+    try {
+      const stats = roomRepository.getRoomStats()
+
+      return stats
+    } catch (error) {
+      console.error('Error in rooms:getStats', error)
+      throw new Error('Failed to get room stats')
+    }
+  })
+
+  // Settings handlers
+  ipcMain.handle('settings:get', async () => {
+    try {
+      const settings = settingsRepository.get()
+
+      return settings
+    } catch (error) {
+      console.error('Error in settings:get', error)
+      throw new Error('Failed to get settings')
+    }
+  })
+
+  ipcMain.handle('settings:update', async (_, data: any) => {
+    try {
+      const success = settingsRepository.update(data)
+      return success
+    } catch (error) {
+      console.error('Error in settings:update', error)
+      throw new Error('Failed to update settings')
+    }
+  })
+
+  ipcMain.handle(
+    'settings:updateRoomCounts',
+    async (_, lectureCount: number, seminarCount: number) => {
+      try {
+        const success = settingsRepository.updateRoomCounts(lectureCount, seminarCount)
+        return success
+      } catch (error) {
+        console.error('Error in settings:updateRoomCounts', error)
+        throw new Error('Failed to update room counts')
+      }
+    }
+  )
 }

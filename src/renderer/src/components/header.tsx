@@ -61,6 +61,7 @@ const Header = () => {
                 { name: 'Classes', path: '/classes' },
                 { name: 'Schedule', path: '/schedule' },
                 { name: 'Teachers', path: '/teachers' },
+                { name: 'Courses', path: '/courses' },
                 { name: 'Settings', path: '/settings' }
               ].map((item, index) => (
                 <motion.li

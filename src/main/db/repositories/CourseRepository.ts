@@ -1,6 +1,6 @@
 // src/main/db/repositories/CourseRepository.ts
 import BaseRepository from './BaseRepository'
-import { Course } from '@shared/types/database'
+import { AssignmentType, Course, CourseWithTeacherDetails, Teacher } from '@shared/types/database'
 import { CourseCreateDto } from '@shared/types/dto'
 
 export default class CourseRepository extends BaseRepository {
@@ -92,7 +92,7 @@ export default class CourseRepository extends BaseRepository {
     const courses = this.getByClassId(classId)
 
     return courses.map((course) => {
-      const teachers = this.getAssignedTeachers(course.id)
+      const teachers = this.getAssignedTeacherIds(course.id)
       return {
         ...course,
         teachers
@@ -100,35 +100,95 @@ export default class CourseRepository extends BaseRepository {
     })
   }
 
-  // ... keep existing teacher assignment methods
-  assignTeacher(courseId: number, teacherId: number): boolean {
+  getCourseWithTeacherDetails(courseId: number): CourseWithTeacherDetails | null {
     try {
-      const statement = this.prepare(`
-        INSERT INTO course_teachers (course_id, teacher_id) VALUES (?, ?)
-      `)
-      statement.run(courseId, teacherId)
-      return true
-    } catch (err) {
-      console.error('Error assigning teacher to course:', err)
-      return false
+      // Get course
+      const course = this.getById(courseId)
+      if (!course) return null
+
+      // Get assigned teachers with types
+      const assignedTeachers = this.getAssignedTeachers(courseId)
+
+      const lectureTeacher = assignedTeachers.find((t) => t.type === 'lecture')
+      const seminarTeacher = assignedTeachers.find((t) => t.type === 'seminar')
+
+      return {
+        ...course,
+        lectureTeacher: lectureTeacher || undefined,
+        seminarTeacher: seminarTeacher || undefined,
+        teachers: assignedTeachers.map((t) => t.id) // For backward compatibility
+      }
+    } catch (error) {
+      console.error('Repository error in getCourseWithTeacherDetails:', error)
+      return null
     }
   }
 
-  removeTeacher(courseId: number, teacherId: number): boolean {
-    const statement = this.prepare(`
-      DELETE FROM course_teachers 
-      WHERE course_id = ? AND teacher_id = ?
-    `)
-    const result = statement.run(courseId, teacherId)
-    return result.changes > 0
+  removeTeacherByType(courseId: number, type: AssignmentType): boolean {
+    try {
+      const statement = this.prepare(`
+        DELETE FROM course_teachers 
+        WHERE course_id = ? AND type = ?
+      `)
+      const result = statement.run(courseId, type)
+      return result.changes > 0
+    } catch (error) {
+      console.error('Error removing teacher from course by type:', error)
+      throw error
+    }
   }
 
-  getAssignedTeachers(courseId: number): number[] {
-    const statement = this.prepare(`
-      SELECT teacher_id FROM course_teachers WHERE course_id = ?
-    `)
-    const results = statement.all(courseId) as { teacher_id: number }[]
-    return results.map((result) => result.teacher_id)
+  removeTeacher(courseId: number, teacherId: number, type?: AssignmentType): boolean {
+    try {
+      let statement
+
+      if (type) {
+        statement = this.prepare(`
+          DELETE FROM course_teachers 
+          WHERE course_id = ? AND teacher_id = ? AND type = ?
+        `)
+        const result = statement.run(courseId, teacherId, type)
+        return result.changes > 0
+      } else {
+        statement = this.prepare(`
+          DELETE FROM course_teachers 
+          WHERE course_id = ? AND teacher_id = ?
+        `)
+        const result = statement.run(courseId, teacherId)
+        return result.changes > 0
+      }
+    } catch (error) {
+      console.error('Error removing teacher from course:', error)
+      throw error
+    }
+  }
+
+  getAssignedTeachers(courseId: number): (Teacher & { type: AssignmentType })[] {
+    try {
+      const statement = this.prepare(`
+        SELECT t.*, ct.type FROM teachers t
+        JOIN course_teachers ct ON t.id = ct.teacher_id
+        WHERE ct.course_id = ?
+        ORDER BY ct.type, t.first_name, t.last_name
+      `)
+      return statement.all(courseId) as (Teacher & { type: AssignmentType })[]
+    } catch (error) {
+      console.error('Repository error in getAssignedTeachers:', error)
+      return []
+    }
+  }
+
+  getAssignedTeacherIds(courseId: number): number[] {
+    try {
+      const statement = this.prepare(`
+        SELECT teacher_id FROM course_teachers WHERE course_id = ?
+      `)
+      const results = statement.all(courseId) as { teacher_id: number }[]
+      return results.map((result) => result.teacher_id)
+    } catch (error) {
+      console.error('Repository error in getAssignedTeacherIds:', error)
+      return []
+    }
   }
 
   delete(id: number): boolean {
@@ -156,5 +216,70 @@ export default class CourseRepository extends BaseRepository {
     )
 
     return result.changes > 0
+  }
+
+  getEligibleTeachers(courseId: number, type?: AssignmentType): Teacher[] {
+    try {
+      let statement
+
+      if (type) {
+        statement = this.prepare(`
+          SELECT DISTINCT t.* FROM teachers t
+          JOIN teacher_courses tc ON t.id = tc.teacher_id
+          WHERE tc.course_id = ? AND (tc.type = ? OR tc.type = 'both')
+          ORDER BY t.first_name, t.last_name
+        `)
+        return statement.all(courseId, type) as Teacher[]
+      } else {
+        statement = this.prepare(`
+          SELECT DISTINCT t.* FROM teachers t
+          JOIN teacher_courses tc ON t.id = tc.teacher_id
+          WHERE tc.course_id = ?
+          ORDER BY t.first_name, t.last_name
+        `)
+        return statement.all(courseId) as Teacher[]
+      }
+    } catch (error) {
+      console.error('Repository error in getEligibleTeachers:', error)
+      return []
+    }
+  }
+
+  assignTeacher(courseId: number, teacherId: number, type: AssignmentType): boolean {
+    try {
+      // Check if teacher is eligible for this type
+      const eligibleTeachers = this.getEligibleTeachers(courseId, type)
+      const isEligible = eligibleTeachers.some((teacher) => teacher.id === teacherId)
+
+      if (!isEligible) {
+        throw new Error(`Teacher is not qualified to teach ${type} for this course`)
+      }
+
+      // Remove existing assignment of same type (only one teacher per type)
+      this.removeTeacherByType(courseId, type)
+
+      // Add new assignment
+      const statement = this.prepare(`
+        INSERT INTO course_teachers (course_id, teacher_id, type) VALUES (?, ?, ?)
+      `)
+      statement.run(courseId, teacherId, type)
+      return true
+    } catch (err: any) {
+      console.error('Error assigning teacher to course:', err)
+      throw err
+    }
+  }
+
+  getCoursesWithTeacherDetails(classId: number): CourseWithTeacherDetails[] {
+    try {
+      const courses = this.getByClassId(classId)
+      return courses.map((course) => {
+        const details = this.getCourseWithTeacherDetails(course.id)
+        return details || { ...course, teachers: [] }
+      })
+    } catch (error) {
+      console.error('Repository error in getCoursesWithTeacherDetails:', error)
+      return []
+    }
   }
 }

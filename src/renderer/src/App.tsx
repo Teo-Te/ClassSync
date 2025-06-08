@@ -7,6 +7,7 @@ import Schedule from './screens/Schedule'
 import Settings from './screens/Settings'
 import Teachers from './screens/Teachers'
 import ClassDetails from './screens/ClassDetails'
+import Courses from './screens/Courses'
 
 function App(): React.JSX.Element {
   return (
@@ -14,12 +15,13 @@ function App(): React.JSX.Element {
       <Layout>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/about" element={<About />} />
           <Route path="/classes" element={<Classes />} />
           <Route path="/classes/:classId" element={<ClassDetails />} />
-          <Route path="/schedule" element={<Schedule />} />
-          <Route path="/settings" element={<Settings />} />
           <Route path="/teachers" element={<Teachers />} />
+          <Route path="/courses" element={<Courses />} />
+          <Route path="/schedule" element={<Schedule />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/settings" element={<Settings />} />
         </Routes>
       </Layout>
     </HashRouter>

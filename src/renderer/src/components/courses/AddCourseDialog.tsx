@@ -1,23 +1,49 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Button } from '@renderer/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@renderer/components/ui/dialog'
 import { Input } from '@renderer/components/ui/input'
 import { Label } from '@renderer/components/ui/label'
+import { Course } from '@shared/types/database'
 
 interface AddCourseDialogProps {
   open: boolean
   onClose: () => void
   onSubmit: (data: any) => void
+  editingCourse?: Course | null // Add this prop
 }
 
-export const AddCourseDialog = ({ open, onClose, onSubmit }: AddCourseDialogProps) => {
+export const AddCourseDialog = ({
+  open,
+  onClose,
+  onSubmit,
+  editingCourse
+}: AddCourseDialogProps) => {
   const [formData, setFormData] = useState({
     name: '',
     hours_per_week: '4',
     lecture_hours: '2',
     seminar_hours: '2'
   })
+
+  // Update form when editing course changes
+  useEffect(() => {
+    if (editingCourse) {
+      setFormData({
+        name: editingCourse.name,
+        hours_per_week: editingCourse.hours_per_week.toString(),
+        lecture_hours: editingCourse.lecture_hours.toString(),
+        seminar_hours: editingCourse.seminar_hours.toString()
+      })
+    } else {
+      setFormData({
+        name: '',
+        hours_per_week: '4',
+        lecture_hours: '2',
+        seminar_hours: '2'
+      })
+    }
+  }, [editingCourse, open])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,22 +55,27 @@ export const AddCourseDialog = ({ open, onClose, onSubmit }: AddCourseDialogProp
       seminar_hours: parseInt(formData.seminar_hours)
     })
 
-    // Reset form
-    setFormData({
-      name: '',
-      hours_per_week: '4',
-      lecture_hours: '2',
-      seminar_hours: '2'
-    })
+    // Reset form only if not editing
+    if (!editingCourse) {
+      setFormData({
+        name: '',
+        hours_per_week: '4',
+        lecture_hours: '2',
+        seminar_hours: '2'
+      })
+    }
   }
 
   const handleClose = () => {
-    setFormData({
-      name: '',
-      hours_per_week: '4',
-      lecture_hours: '2',
-      seminar_hours: '2'
-    })
+    // Reset form when closing
+    if (!editingCourse) {
+      setFormData({
+        name: '',
+        hours_per_week: '4',
+        lecture_hours: '2',
+        seminar_hours: '2'
+      })
+    }
     onClose()
   }
 
@@ -52,7 +83,9 @@ export const AddCourseDialog = ({ open, onClose, onSubmit }: AddCourseDialogProp
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="bg-black border-white/30 text-white">
         <DialogHeader>
-          <DialogTitle className="text-white">Add New Course</DialogTitle>
+          <DialogTitle className="text-white">
+            {editingCourse ? 'Edit Course' : 'Add New Course'}
+          </DialogTitle>
         </DialogHeader>
 
         <motion.form
@@ -138,7 +171,7 @@ export const AddCourseDialog = ({ open, onClose, onSubmit }: AddCourseDialogProp
               Cancel
             </Button>
             <Button type="submit" className="bg-lime-500 hover:bg-lime-600 text-black font-medium">
-              Add Course
+              {editingCourse ? 'Update Course' : 'Add Course'}
             </Button>
           </div>
         </motion.form>

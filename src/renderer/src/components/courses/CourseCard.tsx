@@ -1,5 +1,14 @@
 import { motion } from 'framer-motion'
-import { BookOpen, Clock, Users, UserPlus, Trash2, MoreHorizontal } from 'lucide-react'
+import {
+  BookOpen,
+  Clock,
+  Users,
+  UserPlus,
+  Trash2,
+  MoreHorizontal,
+  GraduationCap,
+  Users as Seminar
+} from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import {
   DropdownMenu,
@@ -7,18 +16,23 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@renderer/components/ui/dropdown-menu'
-import { Course, Teacher } from '@shared/types/database'
+import { CourseWithTeacherDetails, Teacher } from '@shared/types/database'
 
 interface CourseCardProps {
-  course: Course & { teachers?: number[] }
+  course: CourseWithTeacherDetails // Updated type
   teachers: Teacher[]
-  onAssignTeacher: () => void
-  onDelete: () => void
+  onAssignLectureTeacher: () => void // Split into two buttons
+  onAssignSeminarTeacher: () => void
+  onRemoveFromClass: () => void
 }
 
-export const CourseCard = ({ course, teachers, onAssignTeacher, onDelete }: CourseCardProps) => {
-  const assignedTeachers = teachers.filter((teacher) => course.teachers?.includes(teacher.id))
-
+export const CourseCard = ({
+  course,
+  teachers,
+  onAssignLectureTeacher,
+  onAssignSeminarTeacher,
+  onRemoveFromClass
+}: CourseCardProps) => {
   return (
     <motion.div
       whileHover={{ y: -4 }}
@@ -29,16 +43,10 @@ export const CourseCard = ({ course, teachers, onAssignTeacher, onDelete }: Cour
         <div className="flex-1">
           <h3 className="text-lg font-semibold text-white mb-1">{course.name}</h3>
           <div className="flex items-center gap-4 text-sm text-white/70">
-            <div className="flex items-center gap-1">
-              <Clock className="w-4 h-4" />
-              <span>{course.hours_per_week}h/week</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <BookOpen className="w-4 h-4" />
-              <span>
-                {course.lecture_hours}L + {course.seminar_hours}S
-              </span>
-            </div>
+            <span>{course.hours_per_week}h/week</span>
+            <span>
+              {course.lecture_hours}L + {course.seminar_hours}S
+            </span>
           </div>
         </div>
 
@@ -49,59 +57,92 @@ export const CourseCard = ({ course, teachers, onAssignTeacher, onDelete }: Cour
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="bg-black border-white/20">
-            <DropdownMenuItem onClick={onAssignTeacher} className="text-white hover:text-lime-500">
-              <UserPlus className="w-4 h-4 mr-2" />
-              Assign Teacher
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onDelete} className="text-red-500 hover:text-red-400">
+            <DropdownMenuItem
+              onClick={onRemoveFromClass}
+              className="text-red-500 hover:text-red-400"
+            >
               <Trash2 className="w-4 h-4 mr-2" />
-              Delete
+              Remove from Class
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      {/* Assigned Teachers */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-white/70">Assigned Teachers</span>
-          <span className="text-xs text-lime-500">{assignedTeachers.length}</span>
+      {/* Teacher Assignments */}
+      <div className="space-y-4">
+        {/* Lecture Teacher */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <GraduationCap className="w-4 h-4 text-blue-400" />
+              <span className="text-sm font-medium text-white">Lecture Teacher</span>
+            </div>
+            <span className="text-xs text-blue-400">{course.lecture_hours}h</span>
+          </div>
+
+          {course.lectureTeacher ? (
+            <div className="flex items-center gap-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded">
+              <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-black text-xs font-medium">
+                {course.lectureTeacher.first_name[0]}
+                {course.lectureTeacher.last_name[0]}
+              </div>
+              <span className="text-white text-sm">
+                {course.lectureTeacher.first_name} {course.lectureTeacher.last_name}
+              </span>
+            </div>
+          ) : (
+            <div className="text-center py-2 border border-dashed border-white/20 rounded">
+              <span className="text-xs text-white/50">No lecture teacher assigned</span>
+            </div>
+          )}
         </div>
 
-        {assignedTeachers.length === 0 ? (
-          <div className="text-center py-3 border border-dashed border-white/20 rounded">
-            <Users className="w-6 h-6 text-white/30 mx-auto mb-1" />
-            <p className="text-xs text-white/50">No teachers assigned</p>
+        {/* Seminar Teacher */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Seminar className="w-4 h-4 text-green-400" />
+              <span className="text-sm font-medium text-white">Seminar Teacher</span>
+            </div>
+            <span className="text-xs text-green-400">{course.seminar_hours}h</span>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {assignedTeachers.slice(0, 2).map((teacher) => (
-              <div key={teacher.id} className="flex items-center gap-2 text-sm">
-                <div className="w-6 h-6 bg-lime-500 rounded-full flex items-center justify-center text-black text-xs font-medium">
-                  {teacher.first_name[0]}
-                  {teacher.last_name[0]}
-                </div>
-                <span className="text-white">
-                  {teacher.first_name} {teacher.last_name}
-                </span>
+
+          {course.seminarTeacher ? (
+            <div className="flex items-center gap-2 p-2 bg-green-500/10 border border-green-500/20 rounded">
+              <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center text-black text-xs font-medium">
+                {course.seminarTeacher.first_name[0]}
+                {course.seminarTeacher.last_name[0]}
               </div>
-            ))}
-            {assignedTeachers.length > 2 && (
-              <p className="text-xs text-white/50">+{assignedTeachers.length - 2} more</p>
-            )}
-          </div>
-        )}
+              <span className="text-white text-sm">
+                {course.seminarTeacher.first_name} {course.seminarTeacher.last_name}
+              </span>
+            </div>
+          ) : (
+            <div className="text-center py-2 border border-dashed border-white/20 rounded">
+              <span className="text-xs text-white/50">No seminar teacher assigned</span>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Actions */}
-      <div className="mt-4 pt-4 border-t border-white/20">
+      {/* Action Buttons */}
+      <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-white/20">
         <Button
-          onClick={onAssignTeacher}
+          onClick={onAssignLectureTeacher}
           size="sm"
-          className="w-full bg-lime-500 hover:bg-lime-600 text-black"
+          className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30"
         >
-          <UserPlus className="w-4 h-4 mr-2" />
-          {assignedTeachers.length === 0 ? 'Assign Teacher' : 'Manage Teachers'}
+          <GraduationCap className="w-4 h-4 mr-1" />
+          {course.lectureTeacher ? 'Change' : 'Assign'} Lecture
+        </Button>
+
+        <Button
+          onClick={onAssignSeminarTeacher}
+          size="sm"
+          className="bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/30"
+        >
+          <Seminar className="w-4 h-4 mr-1" />
+          {course.seminarTeacher ? 'Change' : 'Assign'} Seminar
         </Button>
       </div>
     </motion.div>

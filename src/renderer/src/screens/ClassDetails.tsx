@@ -1,30 +1,33 @@
-// src/renderer/src/screens/ClassDetails.tsx
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowLeft, Plus, BookOpen, Users } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { CourseCard } from '@renderer/components/courses/CourseCard'
-import { AddCourseDialog } from '@renderer/components/courses/AddCourseDialog'
 import { AssignTeacherDialog } from '@renderer/components/courses/AssignTeacherDialog'
-import { Class, CourseWithTeachers, Teacher } from '@shared/types/database'
+import {
+  Class,
+  Course,
+  CourseWithTeacherDetails,
+  Teacher,
+  AssignmentType
+} from '@shared/types/database'
 import { AssignCourseDialog } from '@renderer/components/courses/AssignCourseDialog'
 
 const ClassDetails = () => {
   const { classId } = useParams<{ classId: string }>()
-  console.log('Class ID:', classId)
   const navigate = useNavigate()
 
   const [isAssignCourseOpen, setIsAssignCourseOpen] = useState(false)
   const [availableCourses, setAvailableCourses] = useState<Course[]>([])
 
   const [classData, setClassData] = useState<Class | null>(null)
-  const [courses, setCourses] = useState<CourseWithTeachers[]>([])
+  const [courses, setCourses] = useState<CourseWithTeacherDetails[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [loading, setLoading] = useState(true)
-  const [isAddCourseOpen, setIsAddCourseOpen] = useState(false)
   const [isAssignTeacherOpen, setIsAssignTeacherOpen] = useState(false)
-  const [selectedCourse, setSelectedCourse] = useState<CourseWithTeachers | null>(null)
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
+  const [assignmentType, setAssignmentType] = useState<AssignmentType>('lecture')
 
   useEffect(() => {
     if (classId) {
@@ -56,7 +59,7 @@ const ClassDetails = () => {
       setLoading(true)
       const [classInfo, coursesWithTeachers, allTeachers] = await Promise.all([
         window.api.classes.getById(Number(classId)),
-        window.api.courses.getCoursesWithTeachers(Number(classId)),
+        window.api.courses.getCoursesWithTeacherDetails(Number(classId)),
         window.api.teachers.getAll()
       ])
 
@@ -70,44 +73,44 @@ const ClassDetails = () => {
     }
   }
 
-  const handleAddCourse = async (courseData: any) => {
+  const handleRemoveCourseFromClass = async (courseId: number) => {
     try {
-      const newCourse = await window.api.courses.create({
-        ...courseData,
-        class_id: Number(classId)
-      })
-      setCourses([...courses, newCourse])
-      setIsAddCourseOpen(false)
-    } catch (error) {
-      console.error('Failed to add course:', error)
-    }
-  }
-
-  const handleDeleteCourse = async (courseId: number) => {
-    try {
-      await window.api.courses.delete(courseId)
+      await window.api.courses.removeFromClass(courseId, Number(classId))
       setCourses(courses.filter((c) => c.id !== courseId))
     } catch (error) {
-      console.error('Failed to delete course:', error)
+      console.error('Failed to remove course from class:', error)
     }
   }
 
-  const handleAssignTeacher = (course: CourseWithTeachers) => {
+  const handleAssignLectureTeacher = (course: Course) => {
     setSelectedCourse(course)
+    setAssignmentType('lecture')
     setIsAssignTeacherOpen(true)
   }
 
-  const handleTeacherAssigned = async (teacherId: number) => {
+  const handleAssignSeminarTeacher = (course: Course) => {
+    setSelectedCourse(course)
+    setAssignmentType('seminar')
+    setIsAssignTeacherOpen(true)
+  }
+
+  const handleTeacherAssigned = async (teacherId: number, type: AssignmentType) => {
     if (!selectedCourse) return
 
     try {
-      await window.api.courses.assignTeacher(selectedCourse.id, teacherId)
+      await window.api.courses.assignTeacher(selectedCourse.id, teacherId, type)
       setIsAssignTeacherOpen(false)
       setSelectedCourse(null)
-      loadClassData()
+      loadClassData() // Reload to show updated assignments
     } catch (error) {
       console.error('Failed to assign teacher:', error)
     }
+  }
+
+  const handleAssignTeacherDialogClose = async () => {
+    await loadClassData()
+    setIsAssignTeacherOpen(false)
+    setSelectedCourse(null)
   }
 
   if (loading) {
@@ -161,7 +164,10 @@ const ClassDetails = () => {
         </div>
 
         <Button
-          onClick={() => setIsAddCourseOpen(true)}
+          onClick={() => {
+            loadAvailableCourses()
+            setIsAssignCourseOpen(true)
+          }}
           className="bg-lime-500 hover:bg-lime-600 text-black"
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -173,7 +179,7 @@ const ClassDetails = () => {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="grid grid-cols-1 md:grid-cols-3 gap-6"
+        className="grid grid-cols-1 md:grid-cols-4 gap-6"
       >
         <div className="bg-black border border-white/20 rounded-lg p-6">
           <div className="flex items-center gap-3">
@@ -187,12 +193,24 @@ const ClassDetails = () => {
 
         <div className="bg-black border border-white/20 rounded-lg p-6">
           <div className="flex items-center gap-3">
-            <Users className="w-8 h-8 text-lime-500" />
+            <Users className="w-8 h-8 text-blue-500" />
             <div>
               <div className="text-2xl font-bold text-white">
-                {courses.reduce((acc, course) => acc + (course.teachers?.length || 0), 0)}
+                {courses.filter((course) => course.lectureTeacher).length}
               </div>
-              <div className="text-white/70">Assigned Teachers</div>
+              <div className="text-white/70">Lecture Teachers</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-black border border-white/20 rounded-lg p-6">
+          <div className="flex items-center gap-3">
+            <Users className="w-8 h-8 text-green-500" />
+            <div>
+              <div className="text-2xl font-bold text-white">
+                {courses.filter((course) => course.seminarTeacher).length}
+              </div>
+              <div className="text-white/70">Seminar Teachers</div>
             </div>
           </div>
         </div>
@@ -246,8 +264,9 @@ const ClassDetails = () => {
                 <CourseCard
                   course={course}
                   teachers={teachers}
-                  onAssignTeacher={() => handleAssignTeacher(course)}
-                  onDelete={() => handleDeleteCourse(course.id)}
+                  onAssignLectureTeacher={() => handleAssignLectureTeacher(course)}
+                  onAssignSeminarTeacher={() => handleAssignSeminarTeacher(course)}
+                  onRemoveFromClass={() => handleRemoveCourseFromClass(course.id)}
                 />
               </motion.div>
             ))}
@@ -264,10 +283,10 @@ const ClassDetails = () => {
 
       <AssignTeacherDialog
         open={isAssignTeacherOpen}
-        onClose={() => setIsAssignTeacherOpen(false)}
+        onClose={handleAssignTeacherDialogClose}
         onSubmit={handleTeacherAssigned}
         course={selectedCourse}
-        teachers={teachers}
+        assignmentType={assignmentType}
       />
     </div>
   )

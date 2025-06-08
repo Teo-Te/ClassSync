@@ -11,7 +11,7 @@ import { Class } from '@shared/types/database'
 import { useNavigate } from 'react-router-dom'
 
 interface ClassCardProps {
-  classItem: Class
+  classItem: Class & { courseCount?: number }
   onEdit: (classItem: Class) => void
   onDelete: (id: number) => void
 }
@@ -66,11 +66,15 @@ export const ClassCard = ({ classItem, onEdit, onDelete }: ClassCardProps) => {
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/20">
         <div className="text-center">
-          <div className="text-lg font-semibold text-lime-500">0</div>
+          <div className="text-lg font-semibold text-lime-500">
+            <span>{classItem.courseCount || 0}</span>
+          </div>
           <div className="text-xs text-white/50">Courses</div>
         </div>
         <div className="text-center">
-          <div className="text-lg font-semibold text-lime-500">0</div>
+          <div className="text-lg font-semibold text-lime-500">
+            <span>0</span>
+          </div>
           <div className="text-xs text-white/50">Schedules</div>
         </div>
       </div>
