@@ -12,7 +12,8 @@ import {
   Info,
   Github,
   Monitor,
-  MapPin
+  MapPin,
+  Database
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
@@ -39,6 +40,7 @@ import {
   SelectValue
 } from '@renderer/components/ui/select'
 import { Room, RoomType } from '@shared/types/database'
+import { seedDatabase } from '@renderer/lib/seed'
 
 const Settings = () => {
   const [rooms, setRooms] = useState<Room[]>([])
@@ -46,6 +48,7 @@ const Settings = () => {
   const [seminarRoomsCount, setSeminarRoomsCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [seeding, setSeeding] = useState(false)
 
   // Room dialog states
   const [isRoomDialogOpen, setIsRoomDialogOpen] = useState(false)
@@ -75,6 +78,23 @@ const Settings = () => {
       console.error('Failed to load settings:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSeedDatabase = async () => {
+    try {
+      setSeeding(true)
+      const result = await seedDatabase()
+      if (result.success) {
+        console.log('✅ Database seeded successfully')
+        // You might want to show a success toast/notification
+      } else {
+        console.error('❌ Database seeding failed:', result.message)
+      }
+    } catch (error) {
+      console.error('❌ Failed to seed database:', error)
+    } finally {
+      setSeeding(false)
     }
   }
 
@@ -429,6 +449,44 @@ const Settings = () => {
                   <div className="text-white/70 text-sm">Total Capacity</div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Database Management */}
+          <Card className="bg-black border-white/20">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                <Database className="w-5 h-5 text-lime-500" />
+                Database Management
+              </CardTitle>
+              <CardDescription className="text-white/70">
+                Initialize database with sample IT engineering data
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                onClick={handleSeedDatabase}
+                disabled={seeding}
+                className="w-full bg-lime-500 hover:bg-lime-600 text-black"
+              >
+                {seeding ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin mr-2" />
+                    Seeding Database...
+                  </>
+                ) : (
+                  <>
+                    <Database className="w-4 h-4 mr-2" />
+                    Seed Sample Data
+                  </>
+                )}
+              </Button>
+
+              {seeding && (
+                <div className="mt-3 text-sm text-white/70">
+                  Creating 15 teachers, 20 courses, 9 classes and their assignments...
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>

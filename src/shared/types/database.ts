@@ -149,3 +149,102 @@ export interface AppSettings {
   seminar_rooms_count: number
   updated_at: string
 }
+
+export interface ScheduleConstraints {
+  // Time constraints
+  preferredStartTime: number // 9 AM = 9
+  preferredEndTime: number // 1 PM = 13
+  maxEndTime: number // 3 PM = 15
+
+  // Teacher constraints
+  maxTeacherHoursPerDay: number // 4 hours preferred, 6 max
+  avoidBackToBackSessions: boolean
+
+  // Room constraints
+  useAuditoriumsForLargeClasses: boolean
+  largeClassThreshold: number // students count
+
+  // Session constraints
+  lectureSessionLength: number // 2 hours
+  seminarSessionLength: number // 2 hours
+  avoidSplittingSessions: boolean
+
+  // Scheduling preferences
+  prioritizeMorningLectures: boolean
+  groupSameCourseClasses: boolean
+  distributeEvenlyAcrossWeek: boolean
+}
+
+export interface TimeSlot {
+  day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday'
+  startTime: number // 24-hour format
+  endTime: number
+  duration: number // in hours
+}
+
+export interface ScheduleConflict {
+  type: 'teacher_conflict' | 'room_conflict' | 'constraint_violation'
+  severity: 'critical' | 'warning' | 'suggestion'
+  message: string
+  affectedItems: string[]
+  suggestions: string[]
+}
+
+export interface ScheduleSession {
+  id: string
+  courseId: number
+  courseName: string
+  classId: number
+  className: string
+  teacherId: number
+  teacherName: string
+  roomId: number
+  roomName: string
+  type: 'lecture' | 'seminar'
+  timeSlot: TimeSlot
+  conflicts: ScheduleConflict[]
+}
+
+export interface GeneratedSchedule {
+  id: string
+  name: string
+  sessions: ScheduleSession[]
+  conflicts: ScheduleConflict[]
+  score: number // Quality score (0-100)
+  metadata: {
+    generatedAt: string
+    constraints: ScheduleConstraints
+    totalHours: number
+    utilizationRate: number
+  }
+}
+
+export interface RoomWithCapacity extends Room {
+  isAuditorium?: boolean
+}
+
+export type ScheduleViewType = 'overview' | 'rooms' | 'teachers' | 'classes'
+
+export interface ScheduleView {
+  type: ScheduleViewType
+  selectedId?: number
+  selectedName?: string
+}
+
+export interface RoomSchedule {
+  room: Room
+  sessions: ScheduleSession[]
+  utilization: number
+}
+
+export interface TeacherSchedule {
+  teacher: TeacherWithCourses
+  sessions: ScheduleSession[]
+  workloadHours: number
+}
+
+export interface ClassSchedule {
+  class: Class
+  sessions: ScheduleSession[]
+  totalHours: number
+}
