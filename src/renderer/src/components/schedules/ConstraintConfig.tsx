@@ -128,46 +128,6 @@ export const ConstraintConfig = ({
         </CardContent>
       </Card>
 
-      {/* Room Constraints */}
-      <Card className="bg-black border-white/20">
-        <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
-            <Building className="w-5 h-5 text-lime-500" />
-            Room Constraints
-          </CardTitle>
-          <CardDescription className="text-white/70">
-            Configure room allocation preferences
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex items-center justify-between p-4 border border-white/20 rounded">
-              <div>
-                <Label className="text-white">Use Auditoriums for Large Classes</Label>
-                <div className="text-white/70 text-sm">Prioritize larger rooms for big classes</div>
-              </div>
-              <Switch
-                checked={constraints.useAuditoriumsForLargeClasses}
-                onCheckedChange={(checked) =>
-                  updateConstraint('useAuditoriumsForLargeClasses', checked)
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-white">Large Class Threshold</Label>
-              <Input
-                type="number"
-                min="20"
-                max="200"
-                value={constraints.largeClassThreshold}
-                onChange={(e) => updateConstraint('largeClassThreshold', Number(e.target.value))}
-                className="bg-black border-white/30 text-white"
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Session Constraints */}
       <Card className="bg-black border-white/20">
         <CardHeader>

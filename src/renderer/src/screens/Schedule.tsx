@@ -35,16 +35,14 @@ const defaultConstraints: ScheduleConstraints = {
   preferredStartTime: 9,
   preferredEndTime: 13,
   maxEndTime: 15,
-  maxTeacherHoursPerDay: 4,
-  avoidBackToBackSessions: true,
-  useAuditoriumsForLargeClasses: true,
-  largeClassThreshold: 50,
+  maxTeacherHoursPerDay: 6,
+  avoidBackToBackSessions: false,
   lectureSessionLength: 2,
   seminarSessionLength: 2,
-  avoidSplittingSessions: true,
-  prioritizeMorningLectures: true,
-  groupSameCourseClasses: true,
-  distributeEvenlyAcrossWeek: true
+  avoidSplittingSessions: false,
+  prioritizeMorningLectures: false,
+  groupSameCourseClasses: false,
+  distributeEvenlyAcrossWeek: false
 }
 
 const Schedule = () => {
@@ -60,6 +58,9 @@ const Schedule = () => {
   const [rooms, setRooms] = useState<Room[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [courses, setCourses] = useState<CourseWithTeacherDetails[]>([])
+  const [classCoursesMap, setClassCoursesMap] = useState<Map<number, CourseWithTeacherDetails[]>>(
+    new Map()
+  ) // ADD THIS
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -69,13 +70,16 @@ const Schedule = () => {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [teachersData, roomsData, classesData] = await Promise.all([
-        window.api.teachers.getAll(), // This returns Teacher[], but we need TeacherWithCourses[]
+      console.log('📊 Loading schedule data...')
+
+      const [teachersData, roomsData, classesData, coursesData] = await Promise.all([
+        window.api.teachers.getAll(),
         window.api.rooms.getAll(),
-        window.api.classes.getAll()
+        window.api.classes.getAll(),
+        window.api.courses.getAll()
       ])
 
-      // Transform teachers to include courses
+      // Transform teachers to include courses with proper types
       const teachersWithCourses: TeacherWithCourses[] = await Promise.all(
         teachersData.map(async (teacher) => {
           try {
@@ -83,34 +87,108 @@ const Schedule = () => {
             return { ...teacher, courses }
           } catch (error) {
             console.error(`Failed to load courses for teacher ${teacher.id}:`, error)
-            return { ...teacher, courses: [] as (Course & { type: CourseType })[] }
+            return { ...teacher, courses: [] }
           }
         })
       )
 
+      // Transform courses to include manual assignments and teacher details
+      const transformedCourses: CourseWithTeacherDetails[] = await Promise.all(
+        coursesData.map(async (course) => {
+          try {
+            // Get manually assigned teachers for this course
+            const assignedTeachers = await window.api.courses.getAssignedTeachers(course.id)
+            return {
+              ...course,
+              teachers: [], // Keep for backward compatibility
+              manualAssignments: assignedTeachers.map((teacher) => ({
+                teacherId: teacher.id,
+                teacherName: `${teacher.first_name} ${teacher.last_name}`,
+                type: teacher.type as 'lecture' | 'seminar' | 'both',
+                isManual: true
+              })),
+              lectureTeacher: undefined, // Initialize optional properties
+              seminarTeacher: undefined
+            }
+          } catch (error) {
+            console.error(`Failed to load manual assignments for course ${course.id}:`, error)
+            return {
+              ...course,
+              teachers: [], // Keep for backward compatibility
+              manualAssignments: [], // Empty array when no manual assignments
+              lectureTeacher: undefined,
+              seminarTeacher: undefined
+            }
+          }
+        })
+      )
+
+      // NEW: Load class-course relationships for each class
+      const classCoursesMapping = new Map<number, CourseWithTeacherDetails[]>()
+
+      for (const classItem of classesData) {
+        try {
+          // Get courses assigned to this specific class
+          const classCourses = await window.api.courses.getByClassId(classItem.id)
+
+          // Transform class courses to include manual assignments
+          const transformedClassCourses: CourseWithTeacherDetails[] = await Promise.all(
+            classCourses.map(async (course) => {
+              const assignedTeachers = await window.api.courses.getAssignedTeachers(course.id)
+              return {
+                ...course,
+                teachers: [],
+                manualAssignments: assignedTeachers.map((teacher) => ({
+                  teacherId: teacher.id,
+                  teacherName: `${teacher.first_name} ${teacher.last_name}`,
+                  type: teacher.type as 'lecture' | 'seminar' | 'both',
+                  isManual: true
+                })),
+                lectureTeacher: undefined,
+                seminarTeacher: undefined
+              }
+            })
+          )
+
+          classCoursesMapping.set(classItem.id, transformedClassCourses)
+          console.log(
+            `📚 Class ${classItem.name}: ${transformedClassCourses.length} courses assigned`
+          )
+          console.log(`   Courses: ${transformedClassCourses.map((c) => c.name).join(', ')}`)
+        } catch (error) {
+          console.error(`Failed to load courses for class ${classItem.id}:`, error)
+          classCoursesMapping.set(classItem.id, [])
+        }
+      }
+
       setTeachers(teachersWithCourses)
       setRooms(roomsData)
       setClasses(classesData)
+      setCourses(transformedCourses)
+      setClassCoursesMap(classCoursesMapping) // NEW: Set the class-courses mapping
 
-      // Load courses with teacher details for all classes
-      const allCourses: CourseWithTeacherDetails[] = []
-      for (const classItem of classesData) {
-        try {
-          const classCourses = await window.api.courses.getCoursesWithTeacherDetails(classItem.id)
-          allCourses.push(...classCourses)
-        } catch (error) {
-          console.error(`Failed to load courses for class ${classItem.id}:`, error)
-          const regularCourses = await window.api.courses.getAll()
-          const transformedCourses: CourseWithTeacherDetails[] = regularCourses.map((course) => ({
-            ...course,
-            teachers: [] // Empty teachers array as fallback
-          }))
-          allCourses.push(...transformedCourses)
+      console.log(`✅ Data loaded successfully:`)
+      console.log(`   Teachers: ${teachersWithCourses.length}`)
+      console.log(`   Rooms: ${roomsData.length}`)
+      console.log(`   Classes: ${classesData.length}`)
+      console.log(`   Total Courses: ${transformedCourses.length}`)
+      console.log(`   Class-Course Mappings: ${classCoursesMapping.size}`)
+
+      // Log class-course relationships for debugging
+      console.log('📋 Class-Course Relationships:')
+      classCoursesMapping.forEach((courses, classId) => {
+        const className = classesData.find((c) => c.id === classId)?.name || `Class ${classId}`
+        console.log(`   ${className}: ${courses.map((c) => c.name).join(', ')}`)
+      })
+
+      // Log manual assignments for debugging
+      transformedCourses.forEach((course) => {
+        if (course.manualAssignments.length > 0) {
+          console.log(`   Manual assignments for ${course.name}:`, course.manualAssignments)
         }
-      }
-      setCourses(allCourses)
+      })
     } catch (error) {
-      console.error('Failed to load data:', error)
+      console.error('❌ Failed to load data:', error)
     } finally {
       setLoading(false)
     }
@@ -120,8 +198,15 @@ const Schedule = () => {
     try {
       setGenerating(true)
 
-      // Create algorithm instance
-      const algorithm = new ScheduleAlgorithm(constraints, teachers, rooms, classes, courses)
+      // Create algorithm instance with class-courses mapping
+      const algorithm = new ScheduleAlgorithm(
+        constraints,
+        teachers,
+        rooms,
+        classes,
+        courses,
+        classCoursesMap
+      )
 
       // Generate schedule
       const schedule = algorithm.generateSchedule()
@@ -134,6 +219,7 @@ const Schedule = () => {
     }
   }
 
+  // ... rest of the component remains the same ...
   const getConflictStats = (conflicts: ScheduleConflict[]) => {
     return {
       critical: conflicts.filter((c) => c.severity === 'critical').length,

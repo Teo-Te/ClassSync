@@ -150,7 +150,7 @@ export const TeacherCard = ({
         </div>
 
         {teacher.courses.length > 0 ? (
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-48 overflow-y-auto no-scrollbar">
             {/* Show all course assignments with type details */}
             {teacher.courses.map((course, idx) => {
               const typeColor = getTypeColor(course.type)

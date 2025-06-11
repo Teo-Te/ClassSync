@@ -160,10 +160,6 @@ export interface ScheduleConstraints {
   maxTeacherHoursPerDay: number // 4 hours preferred, 6 max
   avoidBackToBackSessions: boolean
 
-  // Room constraints
-  useAuditoriumsForLargeClasses: boolean
-  largeClassThreshold: number // students count
-
   // Session constraints
   lectureSessionLength: number // 2 hours
   seminarSessionLength: number // 2 hours
@@ -183,11 +179,13 @@ export interface TimeSlot {
 }
 
 export interface ScheduleConflict {
+  id: number
   type: 'teacher_conflict' | 'room_conflict' | 'constraint_violation'
   severity: 'critical' | 'warning' | 'suggestion'
   message: string
   affectedItems: string[]
   suggestions: string[]
+  timestamp: string
 }
 
 export interface ScheduleSession {
@@ -203,6 +201,9 @@ export interface ScheduleSession {
   type: 'lecture' | 'seminar'
   timeSlot: TimeSlot
   conflicts: ScheduleConflict[]
+  isManualAssignment: boolean
+  isGrouped?: boolean
+  groupId?: string
 }
 
 export interface GeneratedSchedule {
@@ -216,6 +217,8 @@ export interface GeneratedSchedule {
     constraints: ScheduleConstraints
     totalHours: number
     utilizationRate: number
+    manualAssignments: number
+    automaticAssignments: number
   }
 }
 
@@ -247,4 +250,27 @@ export interface ClassSchedule {
   class: Class
   sessions: ScheduleSession[]
   totalHours: number
+}
+
+export interface ManualTeacherAssignment {
+  teacherId: number
+  teacherName: string
+  type: 'lecture' | 'seminar' | 'both'
+  isManual: boolean
+}
+
+export interface CourseWithTeacherDetails extends Course {
+  manualAssignments: ManualTeacherAssignment[] // Use a different property name
+  lectureTeacher?: Teacher // Keep these for backward compatibility
+  seminarTeacher?: Teacher
+}
+
+export interface CourseWithManualAssignments {
+  id: number
+  name: string
+  hours_per_week: number
+  lecture_hours: number
+  seminar_hours: number
+  created_at: string
+  teachers: ManualTeacherAssignment[] // Now this won't conflict
 }

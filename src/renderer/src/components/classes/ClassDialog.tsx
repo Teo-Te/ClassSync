@@ -137,9 +137,9 @@ export const ClassDialog = ({ open, onClose, onSubmit, editingClass }: ClassDial
           <div className="flex justify-end gap-3 pt-4">
             <Button
               type="button"
-              variant="outline"
+              variant="default"
               onClick={onClose}
-              className="border-white/30 text-black hover:text-red-500 hover:border-red-500"
+              className="border-white/30 text-white hover:text-red-500 hover:border-red-500"
             >
               Cancel
             </Button>

@@ -17,7 +17,7 @@ const Header = () => {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
-    <header className="w-full bg-gray-900 border-b border-gray-800 flex items-center justify-between h-16 px-4">
+    <header className="w-full bg-black/90 border-b border-gray-800 flex items-center justify-between h-16 px-4">
       {/* Logo and Title */}
       <div className="flex items-center gap-2">
         <img src={electronLogo} alt="ClassSync" className="w-8 h-8" />
@@ -37,7 +37,7 @@ const Header = () => {
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
           <Input
             placeholder="Search..."
-            className="pl-8 bg-gray-800 border-gray-700 focus:border-lime-500"
+            className="text-white pl-8 bg-gray-800 border-gray-700 focus:border-lime-500"
           />
         </div>
       </div>
@@ -49,7 +49,7 @@ const Header = () => {
             <Menu className="h-5 w-5" />
           </Button>
         </SheetTrigger>
-        <SheetContent side="right" className="bg-gray-800 border-gray-900">
+        <SheetContent side="right" className="bg-black/90 border-gray-900">
           <SheetHeader>
             <SheetTitle className="text-white">Navigation</SheetTitle>
           </SheetHeader>

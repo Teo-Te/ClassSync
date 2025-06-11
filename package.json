@@ -36,6 +36,7 @@
     "lucide-react": "^0.510.0",
     "motion": "^12.12.1",
     "react-router-dom": "^7.6.0",
+    "sweetalert2": "^11.22.0",
     "tailwind-merge": "^3.3.0",
     "tw-animate-css": "^1.2.9",
     "uuid": "^11.1.0"

@@ -18,6 +18,23 @@ import {
   ScheduleCreateDto
 } from '@shared/types/dto'
 
+interface DatabaseSeedResult {
+  success: boolean
+  message: string
+  error?: Error
+}
+
+interface DatabaseClearResult {
+  success: boolean
+  message: string
+  error?: string
+}
+
+interface DatabaseExecuteResult {
+  changes: number
+  lastInsertRowid?: number
+}
+
 declare global {
   interface Window {
     electron: ElectronAPI
@@ -94,10 +111,17 @@ declare global {
           }>
         >
       }
+
       settings: {
         get: () => Promise<AppSettings>
         update: (data: UpdateSettingsDto) => Promise<boolean>
         updateRoomCounts: (lectureCount: number, seminarCount: number) => Promise<boolean>
+      }
+
+      database: {
+        execute: (sql: string, params?: any[]) => Promise<DatabaseExecuteResult>
+        seed: () => Promise<DatabaseSeedResult>
+        clear: () => Promise<DatabaseClearResult>
       }
     }
   }

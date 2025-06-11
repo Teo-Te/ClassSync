@@ -133,7 +133,11 @@ const ClassDetails = () => {
     return (
       <div className="container mx-auto p-6 bg-black min-h-screen text-center">
         <h1 className="text-2xl text-white">Class not found</h1>
-        <Button onClick={() => navigate('/classes')} className="mt-4 bg-lime-500 text-black">
+        <Button
+          variant="default"
+          onClick={() => navigate('/classes')}
+          className="mt-4 bg-lime-500 text-black"
+        >
           Back to Classes
         </Button>
       </div>

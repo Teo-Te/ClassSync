@@ -146,8 +146,8 @@ const Classes = () => {
         </div>
 
         <Button
-          variant="outline"
-          className="border-white/30 text-black hover:text-lime-500 hover:border-lime-500 hover:bg-gray-100"
+          variant="default"
+          className="border border-white/30 bg-white text-black hover:text-lime-500 hover:border-lime-500 hover:bg-black"
         >
           <Filter className="w-4 h-4 mr-2" />
           Filter

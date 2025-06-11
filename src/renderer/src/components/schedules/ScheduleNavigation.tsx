@@ -81,7 +81,7 @@ export const ScheduleNavigation = ({
                 </Badge>
               </div>
               <div className="pt-2 border-t border-white/10">
-                <Button variant="outline" className="w-full">
+                <Button variant="default" className="w-full">
                   View All Room Schedules
                 </Button>
               </div>
@@ -125,7 +125,7 @@ export const ScheduleNavigation = ({
                 </Badge>
               </div>
               <div className="pt-2 border-t border-white/10">
-                <Button variant="outline" className="w-full">
+                <Button variant="default" className="w-full">
                   View All Teacher Schedules
                 </Button>
               </div>
@@ -163,7 +163,7 @@ export const ScheduleNavigation = ({
                 <Badge variant="secondary">{classes.filter((c) => c.year === 3).length}</Badge>
               </div>
               <div className="pt-2 border-t border-white/10">
-                <Button variant="outline" className="w-full">
+                <Button variant="default" className="w-full">
                   View All Class Schedules
                 </Button>
               </div>
@@ -185,9 +185,9 @@ export const ScheduleNavigation = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button
-              variant="ghost"
+              variant="default"
               onClick={() => onViewChange({ type: 'overview' })}
-              className="text-white hover:bg-white/10"
+              className="text-white hover:scale-105 duration-200"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Overview
@@ -268,9 +268,9 @@ export const ScheduleNavigation = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button
-              variant="ghost"
+              variant="default"
               onClick={() => onViewChange({ type: 'overview' })}
-              className="text-white hover:bg-white/10"
+              className="text-white hover:scale-105 duration-200"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Overview
@@ -320,12 +320,12 @@ export const ScheduleNavigation = ({
                     </div>
                     <div className="flex flex-wrap gap-1 mt-2">
                       {teacher.courses.slice(0, 2).map((course, idx) => (
-                        <Badge key={idx} variant="outline" className="text-xs">
+                        <Badge key={idx} variant="default" className="text-xs">
                           {course.type}
                         </Badge>
                       ))}
                       {teacher.courses.length > 2 && (
-                        <Badge variant="outline" className="text-xs">
+                        <Badge variant="default" className="text-xs">
                           +{teacher.courses.length - 2}
                         </Badge>
                       )}
@@ -351,9 +351,9 @@ export const ScheduleNavigation = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button
-              variant="ghost"
+              variant="default"
               onClick={() => onViewChange({ type: 'overview' })}
-              className="text-white hover:bg-white/10"
+              className="text-white hover:scale-105 duration-200"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Overview
@@ -405,10 +405,10 @@ export const ScheduleNavigation = ({
                       <span className="text-white font-medium">{classItem.semester}</span>
                     </div>
                     <div className="flex flex-wrap gap-1 mt-2">
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="default" className="text-xs">
                         {classSessions.filter((s) => s.type === 'lecture').length} Lectures
                       </Badge>
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="default" className="text-xs">
                         {classSessions.filter((s) => s.type === 'seminar').length} Seminars
                       </Badge>
                     </div>

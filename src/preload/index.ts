@@ -88,6 +88,11 @@ const api = {
     update: (data: UpdateSettingsDto) => ipcRenderer.invoke('settings:update', data),
     updateRoomCounts: (lectureCount: number, seminarCount: number) =>
       ipcRenderer.invoke('settings:updateRoomCounts', lectureCount, seminarCount)
+  },
+  database: {
+    execute: (sql: string, params?: any[]) => ipcRenderer.invoke('database:execute', sql, params),
+    seed: () => ipcRenderer.invoke('database:seed'),
+    clear: () => ipcRenderer.invoke('database:clear')
   }
 }
 

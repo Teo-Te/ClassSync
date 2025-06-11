@@ -183,7 +183,7 @@ export const TeacherCoursesDialog = ({
         >
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[50vh]">
             {/* Available Courses */}
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto no-scrollbar">
               <div>
                 <Label className="text-white text-lg font-semibold">
                   Available Courses ({filteredAvailableCourses.length})
@@ -203,7 +203,7 @@ export const TeacherCoursesDialog = ({
               </div>
 
               {/* Available Courses List */}
-              <div className="h-full overflow-y-auto space-y-2 pr-2">
+              <div className="h-full overflow-y-auto no-scrollbar space-y-2 pr-2">
                 {loading ? (
                   <div className="space-y-2">
                     {[...Array(5)].map((_, i) => (
@@ -283,7 +283,7 @@ export const TeacherCoursesDialog = ({
             </div>
 
             {/* Assigned Courses */}
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto no-scrollbar">
               <div>
                 <Label className="text-white text-lg font-semibold">
                   Assigned Courses ({assignedCourses.length})
@@ -292,7 +292,7 @@ export const TeacherCoursesDialog = ({
               </div>
 
               {/* Assigned Courses List */}
-              <div className="h-full overflow-y-auto space-y-2 pr-2">
+              <div className="h-full overflow-y-auto no-scrollbar space-y-2 pr-2">
                 {assignedCourses.length === 0 ? (
                   <div className="text-center py-8 text-white/50">
                     <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -308,7 +308,7 @@ export const TeacherCoursesDialog = ({
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: -20 }}
                         transition={{ delay: index * 0.05 }}
-                        className={`bg-${getTypeColor(course.type)}-500/10 border border-${getTypeColor(course.type)}-500/20 rounded-lg p-3`}
+                        className={`bg-${getTypeColor(course.type)}-500/10 border border-${getTypeColor(course.type)}-500/20 rounded-lg p-3 last:mb-20`}
                       >
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex-1">

@@ -7,6 +7,7 @@ import { generateSchedule } from '../services/schedulerService'
 import { AssignmentType, CourseType } from '@shared/types/database'
 import RoomRepository from '../db/repositories/RoomRepository'
 import SettingsRepository from '../db/repositories/SettingsRepository'
+import { getDatabase } from '../db'
 
 // Initialize repositories
 const classRepository = new ClassRepository()
@@ -512,4 +513,54 @@ export function setupIpcHandlers(): void {
       }
     }
   )
+
+  ipcMain.handle('database:execute', async (_, sql: string, params: any[] = []) => {
+    try {
+      console.log('IPC: Executing SQL:', sql)
+      const db = getDatabase()
+
+      if (params.length > 0) {
+        const result = db.prepare(sql).run(...params)
+        return result
+      } else {
+        const result = db.prepare(sql).run()
+        return result
+      }
+    } catch (error) {
+      console.error('Error in database:execute', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('database:seed', async () => {
+    try {
+      console.log('IPC: Starting database seeding')
+      return { success: true, message: 'Ready to seed database' }
+    } catch (error) {
+      console.error('Error in database:seed', error)
+      return { success: false, message: 'Database seeding failed', error: error as Error }
+    }
+  })
+
+  ipcMain.handle('database:clear', async () => {
+    try {
+      console.log('IPC: Clearing database')
+      const db = getDatabase()
+
+      // Clear in correct order to avoid foreign key constraints
+      db.prepare('DELETE FROM teacher_courses').run()
+      db.prepare('DELETE FROM class_courses').run()
+      db.prepare('DELETE FROM schedules').run()
+      db.prepare('DELETE FROM teachers').run()
+      db.prepare('DELETE FROM courses').run()
+      db.prepare('DELETE FROM classes').run()
+      db.prepare('DELETE FROM rooms').run()
+
+      console.log('IPC: Database cleared successfully')
+      return { success: true, message: 'Database cleared successfully' }
+    } catch (error) {
+      console.error('Error in database:clear', error)
+      return { success: false, message: 'Database clear failed', error: error as Error }
+    }
+  })
 }
