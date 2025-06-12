@@ -1,4 +1,4 @@
-import { RoomType } from './database'
+import { GeneratedSchedule, RoomType } from './database'
 
 export interface ClassCreateDto {
   name: string
@@ -109,4 +109,11 @@ export interface UpdateRoomDto {
 export interface UpdateSettingsDto {
   lecture_rooms_count?: number
   seminar_rooms_count?: number
+}
+
+export interface ScheduleSaveDto {
+  name: string
+  description?: string
+  data: GeneratedSchedule
+  metadata?: any
 }

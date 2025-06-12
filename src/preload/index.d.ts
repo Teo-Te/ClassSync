@@ -7,7 +7,13 @@ import {
   CourseWithTeachers,
   CourseWithTeacherDetails,
   AssignmentType,
-  CourseType
+  CourseType,
+  Room,
+  RoomType,
+  GeneratedSchedule,
+  SavedSchedule,
+  ParsedSavedSchedule,
+  AppSettings
 } from '@shared/types/database'
 import {
   ClassCreateDto,
@@ -15,7 +21,10 @@ import {
   TeacherCreateDto,
   TeacherUpdateDto,
   CourseCreateDto,
-  ScheduleCreateDto
+  ScheduleCreateDto,
+  CreateRoomDto,
+  UpdateRoomDto,
+  UpdateSettingsDto
 } from '@shared/types/dto'
 
 interface DatabaseSeedResult {
@@ -33,6 +42,22 @@ interface DatabaseClearResult {
 interface DatabaseExecuteResult {
   changes: number
   lastInsertRowid?: number
+}
+
+// Schedule save data type
+interface ScheduleSaveData {
+  name: string
+  description?: string
+  data: GeneratedSchedule
+  metadata?: any
+}
+
+// Schedule update data type
+interface ScheduleUpdateData {
+  name?: string
+  description?: string
+  data?: GeneratedSchedule
+  metadata?: any
 }
 
 declare global {
@@ -89,10 +114,19 @@ declare global {
       }
 
       schedules: {
+        // Original schedule methods
         getAll: () => Promise<Schedule[]>
         generate: (classId: number) => Promise<Schedule>
         getById: (id: number) => Promise<Schedule | null>
         create: (data: ScheduleCreateDto) => Promise<Schedule>
+
+        // New saved schedule methods
+        save: (data: ScheduleSaveData) => Promise<SavedSchedule>
+        getSaved: () => Promise<SavedSchedule[]>
+        load: (id: number) => Promise<ParsedSavedSchedule | null>
+        update: (id: number, data: ScheduleUpdateData) => Promise<boolean>
+        deleteSaved: (id: number) => Promise<boolean>
+        search: (query: string) => Promise<SavedSchedule[]>
       }
 
       rooms: {
@@ -116,6 +150,12 @@ declare global {
         get: () => Promise<AppSettings>
         update: (data: UpdateSettingsDto) => Promise<boolean>
         updateRoomCounts: (lectureCount: number, seminarCount: number) => Promise<boolean>
+
+        // Add these generic setting methods for AI configuration
+        getSetting: (key: string) => Promise<string | null>
+        setSetting: (key: string, value: string) => Promise<boolean>
+        removeSetting: (key: string) => Promise<boolean>
+        getAllSettings: () => Promise<Record<string, string>>
       }
 
       database: {

@@ -17,7 +17,10 @@ const Header = () => {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
-    <header className="w-full bg-black/90 border-b border-gray-800 flex items-center justify-between h-16 px-4">
+    <header
+      id="start"
+      className="w-full bg-black/90 border-b border-gray-800 flex items-center justify-between h-16 px-4"
+    >
       {/* Logo and Title */}
       <div className="flex items-center gap-2">
         <img src={electronLogo} alt="ClassSync" className="w-8 h-8" />

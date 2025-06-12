@@ -118,11 +118,12 @@ export class ScheduleAlgorithm {
       const score = this.calculateAdvancedQualityScore()
 
       const result: GeneratedSchedule = {
-        id: `schedule_${Date.now()}`,
+        id: Date.now(),
         name: `Generated Schedule ${new Date().toLocaleDateString()}`,
         sessions: this.sessions,
         conflicts: this.conflicts,
         score,
+        createdAt: new Date().toISOString(),
         metadata: {
           generatedAt: new Date().toISOString(),
           constraints: this.constraints,
@@ -382,12 +383,10 @@ export class ScheduleAlgorithm {
       `🔗 Attempting grouped session for ${groupedClasses.length} classes: ${groupedClasses.map((c) => c.name).join(', ')}`
     )
 
-    // Find large room (auditorium) for grouped classes
-    const largeRooms = this.rooms
-      .filter((room) => room.type === requirement.sessionType)
-      .sort((a, b) => (b.capacity || 0) - (a.capacity || 0))
+    // Find ALL suitable rooms for grouped classes, not just the first one
+    const suitableRooms = this.rooms.filter((room) => room.type === requirement.sessionType)
 
-    if (largeRooms.length === 0) {
+    if (suitableRooms.length === 0) {
       console.log(`   ❌ No suitable rooms for grouped session, scheduling individually`)
       this.scheduleIndividualSession(requirement)
       return
@@ -404,9 +403,15 @@ export class ScheduleAlgorithm {
       return
     }
 
-    // Find best time slot for grouped session
-    const candidates = this.generateTimeSlotCandidates(requirement, teacher, largeRooms[0])
-    const bestCandidate = this.selectBestCandidate(candidates)
+    // Generate candidates for ALL suitable rooms, not just one
+    const allCandidates: TimeSlotCandidate[] = []
+    for (const room of suitableRooms) {
+      const candidates = this.generateTimeSlotCandidates(requirement, teacher, room)
+      allCandidates.push(...candidates)
+    }
+
+    // Select best candidate across ALL rooms
+    const bestCandidate = this.selectBestCandidate(allCandidates)
 
     if (!bestCandidate) {
       console.log(`   ❌ No suitable time slot for grouped session, scheduling individually`)
@@ -437,7 +442,7 @@ export class ScheduleAlgorithm {
         isManualAssignment:
           requirement.course.manualAssignments?.some((a) => a.teacherId === teacher.id) || false,
         isGrouped: true,
-        groupId: `group_${requirement.course.id}_${requirement.sessionType}_${bestCandidate.day}_${bestCandidate.start}` // ADD GROUP ID
+        groupId: `group_${requirement.course.id}_${requirement.sessionType}_${bestCandidate.day}_${bestCandidate.start}`
       }
 
       this.sessions.push(session)
@@ -448,7 +453,7 @@ export class ScheduleAlgorithm {
     )
     console.log(`   👥 Classes: ${groupedClasses.map((c) => c.name).join(', ')}`)
     console.log(`   👨‍🏫 Teacher: ${teacher.first_name} ${teacher.last_name}`)
-    console.log(`   🏢 Room: ${bestCandidate.room.name} (capacity: ${bestCandidate.room.capacity})`)
+    console.log(`   🏢 Room: ${bestCandidate.room.name}`)
     console.log(
       `   🎯 Quality: ${bestCandidate.priority.type.toUpperCase()} (score: ${bestCandidate.priority.score})`
     )
@@ -613,16 +618,8 @@ export class ScheduleAlgorithm {
   }
 
   private getSuitableRooms(sessionType: 'lecture' | 'seminar', classItem: Class): Room[] {
-    const suitableRooms = this.rooms.filter((room) => room.type === sessionType)
-
-    // Sort by preference: larger capacity for lectures, smaller for seminars
-    return suitableRooms.sort((a, b) => {
-      if (sessionType === 'lecture') {
-        return (b.capacity || 0) - (a.capacity || 0) // Largest first for lectures
-      } else {
-        return (a.capacity || 0) - (b.capacity || 0) // Smallest first for seminars
-      }
-    })
+    // Simply return rooms that match the session type, no capacity sorting
+    return this.rooms.filter((room) => room.type === sessionType)
   }
 
   private generateTimeSlotCandidates(
@@ -717,6 +714,30 @@ export class ScheduleAlgorithm {
       penalties += 30
     }
 
+    // 🏢 ROOM DIVERSITY BONUS (NEW)
+    if (
+      requirement.isGroupable &&
+      requirement.groupedClasses &&
+      requirement.groupedClasses.length > 1
+    ) {
+      const roomsUsedForThisCourse = new Set(
+        this.sessions
+          .filter(
+            (s) => s.courseName === requirement.course.name && s.type === requirement.sessionType
+          )
+          .map((s) => s.roomId)
+      )
+
+      if (!roomsUsedForThisCourse.has(room.id)) {
+        score += 35 // Strong bonus for using a new room for this course
+        reasons.push('Promotes room diversity for course')
+      } else if (roomsUsedForThisCourse.size === 1) {
+        score -= 20 // Penalty for concentrating in one room
+        reasons.push('Risk of room bottleneck')
+        penalties += 20
+      }
+    }
+
     // 🌅 MORNING LECTURE PRIORITY
     if (this.constraints.prioritizeMorningLectures && requirement.sessionType === 'lecture') {
       if (timeSlot.startTime === 9) {
@@ -799,21 +820,6 @@ export class ScheduleAlgorithm {
       penalties += teacherScore.penalty
     }
 
-    // 🎯 COURSE GROUPING
-    if (this.constraints.groupSameCourseClasses && requirement.sessionType === 'lecture') {
-      const sameCourseToday = this.sessions.filter(
-        (s) =>
-          s.courseName === requirement.course.name &&
-          s.timeSlot.day === timeSlot.day &&
-          s.type === requirement.sessionType
-      )
-
-      if (sameCourseToday.length > 0) {
-        score += 25
-        reasons.push('Groups with same course')
-      }
-    }
-
     // Final type determination based on total penalties
     if (penalties > 50) {
       type = 'worst'
@@ -847,41 +853,43 @@ export class ScheduleAlgorithm {
       penalty += 50
     }
 
-    // Capacity appropriateness
-    const roomCapacity = room.capacity || 30
-    if (requirement.sessionType === 'lecture') {
-      if (roomCapacity >= 100) {
-        score += 15
-        reasons.push('Large auditorium for lecture')
-      } else if (roomCapacity >= 50) {
-        score += 10
-        reasons.push('Medium lecture room')
-      } else {
-        score -= 10
-        reasons.push('Small room for lecture')
-        penalty += 10
-      }
-    } else {
-      // seminar
-      if (roomCapacity <= 30) {
-        score += 15
-        reasons.push('Appropriate seminar room size')
-      } else if (roomCapacity <= 50) {
-        score += 5
-        reasons.push('Acceptable seminar room')
-      } else {
-        score -= 5
-        reasons.push('Oversized for seminar')
-      }
-    }
-
-    // Room utilization
+    // Room utilization - encourage distribution across multiple rooms
     const roomUsage = this.sessions.filter((s) => s.roomId === room.id).length
     const avgRoomUsage = this.sessions.length / this.rooms.length
 
-    if (roomUsage < avgRoomUsage) {
-      score += 10
+    if (roomUsage === 0) {
+      score += 25 // Bonus for unused rooms
+      reasons.push('Fresh room - good distribution')
+    } else if (roomUsage < avgRoomUsage) {
+      score += 15 // Bonus for underutilized rooms
       reasons.push('Balances room utilization')
+    } else if (roomUsage > avgRoomUsage * 1.5) {
+      score -= 20 // Penalty for overused rooms
+      reasons.push('Room already heavily used')
+      penalty += 15
+    }
+
+    // For grouped sessions, prefer rooms that aren't already hosting other groups at the same time
+    if (
+      requirement.isGroupable &&
+      requirement.groupedClasses &&
+      requirement.groupedClasses.length > 1
+    ) {
+      const competingGroups = this.sessions.filter(
+        (s) => s.roomId === room.id && s.isGrouped && s.type === requirement.sessionType
+      ).length
+
+      if (competingGroups === 0) {
+        score += 30 // Strong bonus for rooms without competing groups
+        reasons.push('No competing grouped sessions')
+      } else if (competingGroups === 1) {
+        score += 10
+        reasons.push('Limited competition in this room')
+      } else {
+        score -= 25
+        reasons.push('Room already has multiple grouped sessions')
+        penalty += 20
+      }
     }
 
     return { score, reasons, penalty }

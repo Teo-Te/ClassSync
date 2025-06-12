@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { ArrowLeft, Building, Users, GraduationCap, Clock, BarChart3 } from 'lucide-react'
+import { ArrowLeft, Building, Users, GraduationCap, Clock, BarChart3, UserPlus } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@renderer/components/ui/card'
 import { Badge } from '@renderer/components/ui/badge'
@@ -60,6 +60,25 @@ export const IndividualScheduleView = ({
       default:
         return null
     }
+  }
+
+  // Group sessions by groupId for display
+  const groupSessionsForDisplay = (sessions: ScheduleSession[]) => {
+    const grouped = new Map<string, ScheduleSession[]>()
+    const individual: ScheduleSession[] = []
+
+    sessions.forEach((session) => {
+      if (session.isGrouped && session.groupId) {
+        if (!grouped.has(session.groupId)) {
+          grouped.set(session.groupId, [])
+        }
+        grouped.get(session.groupId)!.push(session)
+      } else {
+        individual.push(session)
+      }
+    })
+
+    return { grouped: Array.from(grouped.values()), individual }
   }
 
   const entitySessions = getEntitySessions()
@@ -133,6 +152,9 @@ export const IndividualScheduleView = ({
 
     return []
   }
+
+  const { grouped: groupedSessions, individual: individualSessions } =
+    groupSessionsForDisplay(entitySessions)
 
   return (
     <motion.div
@@ -225,8 +247,86 @@ export const IndividualScheduleView = ({
             <CardTitle className="text-white">Session Details</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {entitySessions.map((session) => (
+            <div className="space-y-4">
+              {/* Grouped Sessions */}
+              {groupedSessions.map((group, groupIndex) => {
+                const representativeSession = group[0] // Use first session as representative
+                const allClassNames = group.map((s) => s.className).join(', ')
+
+                return (
+                  <div
+                    key={`group-${groupIndex}`}
+                    className="p-4 bg-purple-500/10 rounded border border-purple-500/20"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <Badge className="bg-purple-500 text-white">
+                          {representativeSession.type.toUpperCase()} - GROUPED
+                        </Badge>
+                        <div className="flex items-center gap-2 text-purple-300">
+                          <UserPlus className="w-4 h-4" />
+                          <span className="text-sm">{group.length} Classes</span>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onSessionClick?.(representativeSession)}
+                        className="text-white bg-black hover:bg-purple-500/20"
+                      >
+                        View Details
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="text-white font-medium text-lg">
+                        {representativeSession.courseName}
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                        <div className="text-white/70">
+                          <span className="font-medium">Classes:</span> {allClassNames}
+                        </div>
+                        <div className="text-white/70">
+                          <span className="font-medium">Time:</span>{' '}
+                          {representativeSession.timeSlot.day}{' '}
+                          {representativeSession.timeSlot.startTime}:00-
+                          {representativeSession.timeSlot.endTime}:00
+                        </div>
+                        {view.type !== 'teachers' && (
+                          <div className="text-white/70">
+                            <span className="font-medium">Teacher:</span>{' '}
+                            {representativeSession.teacherName}
+                          </div>
+                        )}
+                        {view.type !== 'rooms' && (
+                          <div className="text-white/70">
+                            <span className="font-medium">Room:</span>{' '}
+                            {representativeSession.roomName}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Show individual class details if needed */}
+                      <details className="mt-2">
+                        <summary className="text-purple-300 cursor-pointer text-sm hover:text-purple-200">
+                          Show individual class sessions
+                        </summary>
+                        <div className="mt-2 pl-4 space-y-1">
+                          {group.map((session, index) => (
+                            <div key={session.id} className="text-white/60 text-xs">
+                              • Class {session.className}
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* Individual Sessions */}
+              {individualSessions.map((session) => (
                 <div
                   key={session.id}
                   className="flex items-center justify-between p-3 bg-white/5 rounded border border-white/10"
@@ -253,7 +353,7 @@ export const IndividualScheduleView = ({
                     variant="ghost"
                     size="sm"
                     onClick={() => onSessionClick?.(session)}
-                    className="text-white hover:bg-white/10"
+                    className="text-white bg-black"
                   >
                     View Details
                   </Button>

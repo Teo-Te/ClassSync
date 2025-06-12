@@ -6,7 +6,7 @@ import { runInitialMigration } from './migrations/initial'
 let db: BetterSqlite3.Database | null = null
 
 export function initDatabase(): BetterSqlite3.Database {
-  const dbPath = path.join(app.getPath('userData'), 'classsyncV6.db')
+  const dbPath = path.join(app.getPath('userData'), 'classsyncV9.db')
   db = new BetterSqlite3(dbPath)
 
   // Enable foreign keys

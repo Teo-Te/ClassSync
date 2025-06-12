@@ -8,11 +8,14 @@ import Settings from './screens/Settings'
 import Teachers from './screens/Teachers'
 import ClassDetails from './screens/ClassDetails'
 import Courses from './screens/Courses'
+import ScrollToTop from './layouts/ScrollToTop'
 
 function App(): React.JSX.Element {
   return (
     <HashRouter>
       <Layout>
+        {/* Scroll to top on route change */}
+        <ScrollToTop />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/classes" element={<Classes />} />

@@ -13,7 +13,8 @@ import {
   Github,
   Monitor,
   MapPin,
-  Database
+  Database,
+  Sparkles
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
@@ -41,6 +42,7 @@ import {
 } from '@renderer/components/ui/select'
 import { Room, RoomType } from '@shared/types/database'
 import { seedDatabase } from '@renderer/lib/seed'
+import AISettings from '@renderer/components/schedules/ai/AISettings'
 
 const Settings = () => {
   const [rooms, setRooms] = useState<Room[]>([])
@@ -191,60 +193,18 @@ const Settings = () => {
           animate={{ opacity: 1, x: 0 }}
           className="space-y-6"
         >
-          {/* Room Counts */}
           <Card className="bg-black border-white/20">
             <CardHeader>
               <CardTitle className="text-white flex items-center gap-2">
-                <Building className="w-5 h-5 text-lime-500" />
-                Room Configuration
+                <Sparkles className="w-5 h-5 text-purple-500" />
+                AI Configuration
               </CardTitle>
               <CardDescription className="text-white/70">
-                Configure the number of available rooms for scheduling
+                Configure AI settings for schedule optimization
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="lecture-rooms" className="text-white flex items-center gap-2">
-                    <GraduationCap className="w-4 h-4 text-blue-500" />
-                    Lecture Rooms
-                  </Label>
-                  <Input
-                    id="lecture-rooms"
-                    type="number"
-                    min="0"
-                    value={lectureRoomsCount}
-                    onChange={(e) => setLectureRoomsCount(Number(e.target.value))}
-                    className="bg-black border-white/30 text-white"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="seminar-rooms" className="text-white flex items-center gap-2">
-                    <Users className="w-4 h-4 text-green-500" />
-                    Seminar Rooms
-                  </Label>
-                  <Input
-                    id="seminar-rooms"
-                    type="number"
-                    min="0"
-                    value={seminarRoomsCount}
-                    onChange={(e) => setSeminarRoomsCount(Number(e.target.value))}
-                    className="bg-black border-white/30 text-white"
-                  />
-                </div>
-              </div>
-              <Button
-                onClick={handleSaveRoomCounts}
-                disabled={saving}
-                className="w-full bg-lime-500 hover:bg-lime-600 text-black"
-              >
-                {saving ? (
-                  <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin mr-2" />
-                ) : (
-                  <Save className="w-4 h-4 mr-2" />
-                )}
-                Save Room Configuration
-              </Button>
+            <CardContent className="p-0">
+              <AISettings onClose={() => {}} />
             </CardContent>
           </Card>
 

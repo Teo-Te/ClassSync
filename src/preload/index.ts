@@ -11,7 +11,7 @@ import {
   UpdateRoomDto,
   UpdateSettingsDto
 } from '@shared/types/dto'
-import { Room, RoomType } from '@shared/types/database'
+import { GeneratedSchedule, Room, RoomType } from '@shared/types/database'
 
 const api = {
   classes: {
@@ -72,7 +72,24 @@ const api = {
     getAll: () => ipcRenderer.invoke('schedules:getAll'),
     generate: (classId: number) => ipcRenderer.invoke('schedules:generate', classId),
     getById: (id: number) => ipcRenderer.invoke('schedules:getById', id),
-    create: (data: ScheduleCreateDto) => ipcRenderer.invoke('schedules:create', data)
+    create: (data: ScheduleCreateDto) => ipcRenderer.invoke('schedules:create', data),
+
+    // New methods for saved schedules
+    save: (data: { name: string; description?: string; data: GeneratedSchedule; metadata?: any }) =>
+      ipcRenderer.invoke('schedules:save', data),
+    getSaved: () => ipcRenderer.invoke('schedules:getSaved'),
+    load: (id: number) => ipcRenderer.invoke('schedules:load', id),
+    update: (
+      id: number,
+      data: {
+        name?: string
+        description?: string
+        data?: GeneratedSchedule
+        metadata?: any
+      }
+    ) => ipcRenderer.invoke('schedules:update', id, data),
+    deleteSaved: (id: number) => ipcRenderer.invoke('schedules:deleteSaved', id),
+    search: (query: string) => ipcRenderer.invoke('schedules:search', query)
   },
   rooms: {
     getAll: () => ipcRenderer.invoke('rooms:getAll'),
@@ -87,7 +104,13 @@ const api = {
     get: () => ipcRenderer.invoke('settings:get'),
     update: (data: UpdateSettingsDto) => ipcRenderer.invoke('settings:update', data),
     updateRoomCounts: (lectureCount: number, seminarCount: number) =>
-      ipcRenderer.invoke('settings:updateRoomCounts', lectureCount, seminarCount)
+      ipcRenderer.invoke('settings:updateRoomCounts', lectureCount, seminarCount),
+
+    // Add generic setting methods for AI configuration
+    getSetting: (key: string) => ipcRenderer.invoke('get-setting', key),
+    setSetting: (key: string, value: string) => ipcRenderer.invoke('set-setting', key, value),
+    removeSetting: (key: string) => ipcRenderer.invoke('remove-setting', key),
+    getAllSettings: () => ipcRenderer.invoke('get-all-settings')
   },
   database: {
     execute: (sql: string, params?: any[]) => ipcRenderer.invoke('database:execute', sql, params),

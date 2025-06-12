@@ -207,11 +207,12 @@ export interface ScheduleSession {
 }
 
 export interface GeneratedSchedule {
-  id: string
+  id: number
   name: string
   sessions: ScheduleSession[]
   conflicts: ScheduleConflict[]
-  score: number // Quality score (0-100)
+  score: number
+  createdAt: string
   metadata: {
     generatedAt: string
     constraints: ScheduleConstraints
@@ -219,6 +220,13 @@ export interface GeneratedSchedule {
     utilizationRate: number
     manualAssignments: number
     automaticAssignments: number
+    optimizedBy?: string
+    aiOptimizationHistory?: Array<{
+      timestamp: string
+      type: 'fix' | 'refine'
+      improvements: string[]
+      conflictsResolved: number
+    }>
   }
 }
 
@@ -272,5 +280,21 @@ export interface CourseWithManualAssignments {
   lecture_hours: number
   seminar_hours: number
   created_at: string
-  teachers: ManualTeacherAssignment[] // Now this won't conflict
+  teachers: ManualTeacherAssignment[]
+}
+
+export interface SavedSchedule {
+  id: number
+  uuid: string
+  name: string
+  description?: string
+  data: string
+  metadata?: string
+  created_at: string
+  updated_at?: string
+}
+
+export interface ParsedSavedSchedule extends Omit<SavedSchedule, 'data' | 'metadata'> {
+  data: GeneratedSchedule
+  metadata?: any
 }

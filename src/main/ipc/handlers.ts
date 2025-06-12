@@ -4,7 +4,7 @@ import TeacherRepository from '../db/repositories/TeacherRepository'
 import CourseRepository from '../db/repositories/CourseRepository'
 import ScheduleRepository from '../db/repositories/ScheduleRepository'
 import { generateSchedule } from '../services/schedulerService'
-import { AssignmentType, CourseType } from '@shared/types/database'
+import { AssignmentType, CourseType, GeneratedSchedule } from '@shared/types/database'
 import RoomRepository from '../db/repositories/RoomRepository'
 import SettingsRepository from '../db/repositories/SettingsRepository'
 import { getDatabase } from '../db'
@@ -561,6 +561,147 @@ export function setupIpcHandlers(): void {
     } catch (error) {
       console.error('Error in database:clear', error)
       return { success: false, message: 'Database clear failed', error: error as Error }
+    }
+  })
+
+  ipcMain.handle(
+    'schedules:save',
+    async (
+      _,
+      data: {
+        name: string
+        description?: string
+        data: GeneratedSchedule
+        metadata?: any
+      }
+    ) => {
+      try {
+        return scheduleRepository.create(data)
+      } catch (error) {
+        console.error('Error in schedules:save', error)
+        throw new Error('Failed to save schedule')
+      }
+    }
+  )
+
+  // Get all saved schedules
+  ipcMain.handle('schedules:getSaved', async () => {
+    try {
+      return scheduleRepository.getAll()
+    } catch (error) {
+      console.error('Error in schedules:getSaved', error)
+      throw new Error('Failed to get saved schedules')
+    }
+  })
+
+  // Load saved schedule by ID
+  ipcMain.handle('schedules:load', async (_, id: number) => {
+    try {
+      return scheduleRepository.getById(id)
+    } catch (error) {
+      console.error('Error in schedules:load', error)
+      throw new Error('Failed to load schedule')
+    }
+  })
+
+  // Update saved schedule
+  ipcMain.handle(
+    'schedules:update',
+    async (
+      _,
+      id: number,
+      data: {
+        name?: string
+        description?: string
+        data?: GeneratedSchedule
+        metadata?: any
+      }
+    ) => {
+      try {
+        return scheduleRepository.update(id, data)
+      } catch (error) {
+        console.error('Error in schedules:update', error)
+        throw new Error('Failed to update schedule')
+      }
+    }
+  )
+
+  // Delete saved schedule
+  ipcMain.handle('schedules:deleteSaved', async (_, id: number) => {
+    try {
+      return scheduleRepository.delete(id)
+    } catch (error) {
+      console.error('Error in schedules:deleteSaved', error)
+      throw new Error('Failed to delete schedule')
+    }
+  })
+
+  // Search schedules
+  ipcMain.handle('schedules:search', async (_, query: string) => {
+    try {
+      return scheduleRepository.search(query)
+    } catch (error) {
+      console.error('Error in schedules:search', error)
+      throw new Error('Failed to search schedules')
+    }
+  })
+
+  // src/main/ipc/handlers.ts
+  // Update the generic setting handlers to use generic_settings table
+
+  ipcMain.handle('get-setting', async (_, key: string) => {
+    try {
+      const db = getDatabase()
+      const stmt = db.prepare('SELECT value FROM generic_settings WHERE key = ?')
+      const result = stmt.get(key) as { value: string } | undefined
+      return result?.value || null
+    } catch (error) {
+      console.error(`Error getting setting ${key}:`, error)
+      return null
+    }
+  })
+
+  ipcMain.handle('set-setting', async (_, key: string, value: string) => {
+    try {
+      const db = getDatabase()
+      const stmt = db.prepare(`
+      INSERT OR REPLACE INTO generic_settings (key, value, updated_at) 
+      VALUES (?, ?, datetime('now'))
+    `)
+      stmt.run(key, value)
+      return true
+    } catch (error) {
+      console.error(`Error setting ${key}:`, error)
+      return false
+    }
+  })
+
+  ipcMain.handle('remove-setting', async (_, key: string) => {
+    try {
+      const db = getDatabase()
+      const stmt = db.prepare('DELETE FROM generic_settings WHERE key = ?')
+      stmt.run(key)
+      return true
+    } catch (error) {
+      console.error(`Error removing setting ${key}:`, error)
+      return false
+    }
+  })
+
+  ipcMain.handle('get-all-settings', async () => {
+    try {
+      const db = getDatabase()
+      const stmt = db.prepare('SELECT key, value FROM generic_settings')
+      const results = stmt.all() as { key: string; value: string }[]
+
+      const settings: Record<string, string> = {}
+      results.forEach((row) => {
+        settings[row.key] = row.value
+      })
+      return settings
+    } catch (error) {
+      console.error('Error getting all settings:', error)
+      return {}
     }
   })
 }

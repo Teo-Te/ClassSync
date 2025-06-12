@@ -54,7 +54,6 @@ export function runInitialMigration() {
     `)
 
     // Teacher-Course junction table (teachers can teach specific courses)
-    // Updated to include type column for lecture/seminar/both
     db.exec(`
       CREATE TABLE IF NOT EXISTS teacher_courses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,7 +68,6 @@ export function runInitialMigration() {
     `)
 
     // Course Teachers table (teacher assigned to specific course for a class)
-    // Updated to include type column for lecture/seminar assignments
     db.exec(`
       CREATE TABLE IF NOT EXISTS course_teachers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -83,16 +81,17 @@ export function runInitialMigration() {
       );
     `)
 
-    // Schedules table
+    // NEW: Saved Schedules table (replaces old schedules table)
     db.exec(`
-      CREATE TABLE IF NOT EXISTS schedules (
+      CREATE TABLE IF NOT EXISTS saved_schedules (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        uuid TEXT NOT NULL UNIQUE,
+        uuid TEXT UNIQUE NOT NULL,
         name TEXT NOT NULL,
-        class_id INTEGER NOT NULL,
-        data TEXT NOT NULL, -- JSON data of schedule
+        description TEXT,
+        data TEXT NOT NULL, -- JSON string of GeneratedSchedule
+        metadata TEXT, -- Additional metadata as JSON (constraints, etc.)
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (class_id) REFERENCES classes (id) ON DELETE CASCADE
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
     `)
 
@@ -123,6 +122,16 @@ export function runInitialMigration() {
       VALUES (1, 0, 0);
     `)
 
+    // Create generic_settings table for key-value pairs
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS generic_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
+    `)
+
     // Create indexes for better query performance
     db.exec(`
       CREATE INDEX IF NOT EXISTS idx_class_courses_class_id ON class_courses (class_id);
@@ -134,10 +143,14 @@ export function runInitialMigration() {
       CREATE INDEX IF NOT EXISTS idx_course_teachers_teacher_id ON course_teachers (teacher_id);
       CREATE INDEX IF NOT EXISTS idx_course_teachers_type ON course_teachers (type);
       CREATE INDEX IF NOT EXISTS idx_course_teachers_course_type ON course_teachers (course_id, type);
-      CREATE INDEX IF NOT EXISTS idx_schedules_class_id ON schedules (class_id);
       CREATE INDEX IF NOT EXISTS idx_rooms_type ON rooms (type);
+      
+      -- NEW: Indexes for saved schedules
+      CREATE INDEX IF NOT EXISTS idx_saved_schedules_uuid ON saved_schedules (uuid);
+      CREATE INDEX IF NOT EXISTS idx_saved_schedules_created_at ON saved_schedules (created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_saved_schedules_name ON saved_schedules (name);
     `)
 
-    console.log('Initial migration completed successfully with lecture/seminar support')
+    console.log('Initial migration completed successfully with saved schedules support')
   })()
 }
