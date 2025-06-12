@@ -631,6 +631,11 @@ export class ScheduleAlgorithm {
 
     for (const day of this.DAYS) {
       for (const timeSlot of this.TIME_SLOTS) {
+        // 🚨 CRITICAL: Enforce maximum end time constraint FIRST
+        if (timeSlot.end > this.constraints.maxEndTime) {
+          continue // Skip any time slots that end after the maximum allowed time
+        }
+
         // Check basic availability (conflict-free)
         if (
           !this.isTimeSlotAvailable(
@@ -693,7 +698,16 @@ export class ScheduleAlgorithm {
     let type: 'best' | 'good' | 'worst' = 'best'
     let penalties = 0
 
-    // ⏰ TIME WINDOW SCORING
+    if (timeSlot.endTime > this.constraints.maxEndTime) {
+      score -= 1000
+      reasons.push(
+        `VIOLATION: Ends after max time (${timeSlot.endTime}:00 > ${this.constraints.maxEndTime}:00)`
+      )
+      type = 'worst'
+      penalties += 1000
+    }
+
+    // ⏰ TIME WINDOW SCORING (Updated priority order)
     if (
       timeSlot.startTime >= this.constraints.preferredStartTime &&
       timeSlot.endTime <= this.constraints.preferredEndTime
@@ -702,16 +716,22 @@ export class ScheduleAlgorithm {
       reasons.push('Preferred time window')
     } else if (
       timeSlot.startTime >= this.constraints.preferredStartTime &&
-      timeSlot.endTime <= this.constraints.maxEndTime
+      timeSlot.endTime <= this.constraints.maxEndTime // This should always be true now
     ) {
       score += 20
       reasons.push('Acceptable time window')
       type = 'good'
+    } else if (timeSlot.startTime < this.constraints.preferredStartTime) {
+      score -= 15
+      reasons.push('Starts before preferred time')
+      type = 'good'
+      penalties += 15
     } else {
-      score -= 30
-      reasons.push('Outside preferred hours')
+      // This case should never happen due to filtering above
+      score -= 50
+      reasons.push('Outside acceptable hours')
       type = 'worst'
-      penalties += 30
+      penalties += 50
     }
 
     // 🏢 ROOM DIVERSITY BONUS (NEW)
@@ -1047,6 +1067,28 @@ export class ScheduleAlgorithm {
   private validateFinalSchedule(): void {
     console.log('🔍 Final schedule validation...')
 
+    // 🚨 CRITICAL: Check for maximum end time violations
+    const lateSessionsViolations = this.sessions.filter(
+      (session) => session.timeSlot.endTime > this.constraints.maxEndTime
+    )
+
+    if (lateSessionsViolations.length > 0) {
+      for (const session of lateSessionsViolations) {
+        this.addConflict(
+          'critical',
+          `CRITICAL VIOLATION: ${session.courseName} ${session.type} for ${session.className} ends at ${session.timeSlot.endTime}:00, exceeding maximum end time of ${this.constraints.maxEndTime}:00`,
+          [session.courseName, session.className, `${session.timeSlot.endTime}:00`]
+        )
+      }
+
+      console.log(
+        `🚨 ${lateSessionsViolations.length} sessions violate maximum end time constraint!`
+      )
+    }
+
+    // 🎯 NEW: Validate lecture-seminar count per class
+    this.validateClassSessionCounts()
+
     // Check for conflicts but ALLOW grouped sessions (same time/room/teacher for different classes)
     for (let i = 0; i < this.sessions.length; i++) {
       for (let j = i + 1; j < this.sessions.length; j++) {
@@ -1096,7 +1138,7 @@ export class ScheduleAlgorithm {
       }
     }
 
-    // Check for missing sessions
+    // Legacy missing session validation (already covered by validateClassSessionCounts but keeping for safety)
     for (const classItem of this.classes) {
       const classCourses = this.getCoursesForClass(classItem)
       for (const course of classCourses) {
@@ -1123,90 +1165,429 @@ export class ScheduleAlgorithm {
     }
   }
 
+  // 🎯 NEW: Comprehensive class session count validation
+  private validateClassSessionCounts(): void {
+    console.log('📊 Validating class session counts...')
+
+    for (const classItem of this.classes) {
+      const classCourses = this.getCoursesForClass(classItem)
+      const expectedCourseCount = classCourses.length
+
+      if (expectedCourseCount === 0) {
+        this.addConflict('critical', `Class ${classItem.name} has no assigned courses`, [
+          classItem.name
+        ])
+        continue
+      }
+
+      // Count actual lectures and seminars for this class
+      const classLectures = this.sessions.filter(
+        (s) => s.classId === classItem.id && s.type === 'lecture'
+      )
+      const classSeminars = this.sessions.filter(
+        (s) => s.classId === classItem.id && s.type === 'seminar'
+      )
+
+      const actualLectureCount = classLectures.length
+      const actualSeminarCount = classSeminars.length
+
+      console.log(`   📚 ${classItem.name}: Expected ${expectedCourseCount} courses`)
+      console.log(`      📖 Lectures: ${actualLectureCount}/${expectedCourseCount}`)
+      console.log(`      🔬 Seminars: ${actualSeminarCount}/${expectedCourseCount}`)
+
+      // Validate lecture count
+      if (actualLectureCount < expectedCourseCount) {
+        const missingCount = expectedCourseCount - actualLectureCount
+        this.addConflict(
+          'critical',
+          `Class ${classItem.name} is missing ${missingCount} lecture(s). Expected: ${expectedCourseCount}, Found: ${actualLectureCount}`,
+          [classItem.name, `Missing ${missingCount} lectures`]
+        )
+      } else if (actualLectureCount > expectedCourseCount) {
+        const excessCount = actualLectureCount - expectedCourseCount
+        this.addConflict(
+          'warning',
+          `Class ${classItem.name} has ${excessCount} excess lecture(s). Expected: ${expectedCourseCount}, Found: ${actualLectureCount}`,
+          [classItem.name, `${excessCount} excess lectures`]
+        )
+      }
+
+      // Validate seminar count
+      if (actualSeminarCount < expectedCourseCount) {
+        const missingCount = expectedCourseCount - actualSeminarCount
+        this.addConflict(
+          'critical',
+          `Class ${classItem.name} is missing ${missingCount} seminar(s). Expected: ${expectedCourseCount}, Found: ${actualSeminarCount}`,
+          [classItem.name, `Missing ${missingCount} seminars`]
+        )
+      } else if (actualSeminarCount > expectedCourseCount) {
+        const excessCount = actualSeminarCount - expectedCourseCount
+        this.addConflict(
+          'warning',
+          `Class ${classItem.name} has ${excessCount} excess seminar(s). Expected: ${expectedCourseCount}, Found: ${actualSeminarCount}`,
+          [classItem.name, `${excessCount} excess seminars`]
+        )
+      }
+
+      // Validate lecture-seminar balance
+      if (actualLectureCount !== actualSeminarCount) {
+        const difference = Math.abs(actualLectureCount - actualSeminarCount)
+        const type = actualLectureCount > actualSeminarCount ? 'lectures' : 'seminars'
+        this.addConflict(
+          'warning',
+          `Class ${classItem.name} has unbalanced sessions: ${actualLectureCount} lectures vs ${actualSeminarCount} seminars (${difference} more ${type})`,
+          [classItem.name, `Unbalanced: ${actualLectureCount}L vs ${actualSeminarCount}S`]
+        )
+      }
+
+      // Check for course-specific completeness
+      for (const course of classCourses) {
+        const courseLectures = this.sessions.filter(
+          (s) => s.classId === classItem.id && s.courseId === course.id && s.type === 'lecture'
+        )
+        const courseSeminars = this.sessions.filter(
+          (s) => s.classId === classItem.id && s.courseId === course.id && s.type === 'seminar'
+        )
+
+        if (courseLectures.length === 0) {
+          this.addConflict(
+            'critical',
+            `Course ${course.name} for ${classItem.name} is missing its lecture`,
+            [course.name, classItem.name, 'Missing lecture']
+          )
+        }
+
+        if (courseSeminars.length === 0) {
+          this.addConflict(
+            'critical',
+            `Course ${course.name} for ${classItem.name} is missing its seminar`,
+            [course.name, classItem.name, 'Missing seminar']
+          )
+        }
+
+        if (courseLectures.length > 1) {
+          this.addConflict(
+            'warning',
+            `Course ${course.name} for ${classItem.name} has ${courseLectures.length} lectures (expected 1)`,
+            [course.name, classItem.name, `${courseLectures.length} lectures`]
+          )
+        }
+
+        if (courseSeminars.length > 1) {
+          this.addConflict(
+            'warning',
+            `Course ${course.name} for ${classItem.name} has ${courseSeminars.length} seminars (expected 1)`,
+            [course.name, classItem.name, `${courseSeminars.length} seminars`]
+          )
+        }
+      }
+    }
+
+    const totalExpectedSessions = this.classes.reduce((total, classItem) => {
+      const courseCount = this.getCoursesForClass(classItem).length
+      return total + courseCount * 2 // 2 sessions per course (lecture + seminar)
+    }, 0)
+
+    console.log(`   📊 Validation Summary:`)
+    console.log(`      Expected total sessions: ${totalExpectedSessions}`)
+    console.log(`      Actual total sessions: ${this.sessions.length}`)
+    console.log(
+      `      Session coverage: ${totalExpectedSessions > 0 ? ((this.sessions.length / totalExpectedSessions) * 100).toFixed(1) : 0}%`
+    )
+  }
+
   private calculateAdvancedQualityScore(): number {
-    const expectedSessions = this.classes.length * 5 * 2 // 6 classes × 5 courses × 2 types
-    const actualSessions = this.sessions.length
-    const criticalConflicts = this.conflicts.filter((c) => c.severity === 'critical').length
+    console.log('\n📊 Calculating Advanced Quality Score...')
 
-    // Base coverage score
-    let score = Math.min(100, (actualSessions / expectedSessions) * 100)
+    // Step 1: Calculate expected vs actual sessions dynamically
+    const { expectedSessions, actualSessions } = this.calculateSessionCoverage()
 
-    // Critical conflicts penalty (this should be 0 in a good algorithm)
-    score -= criticalConflicts * 25
+    // Step 2: Base score from coverage (0-100)
+    let score = this.calculateCoverageScore(expectedSessions, actualSessions)
+    console.log(`   📈 Coverage Score: ${score.toFixed(1)}%`)
 
-    // Constraint adherence bonuses
-    score += this.calculateConstraintBonuses()
+    // Step 3: Apply conflict penalties (can reduce score significantly)
+    const conflictPenalty = this.calculateConflictPenalties()
+    score = Math.max(0, score - conflictPenalty)
+    console.log(
+      `   ⚠️ After Conflict Penalties: ${score.toFixed(1)}% (penalty: -${conflictPenalty.toFixed(1)})`
+    )
 
-    // Quality distribution bonus
-    score += this.calculateQualityDistributionBonus()
+    // Step 4: Apply constraint adherence (can only improve score up to 100%)
+    const constraintBonus = this.calculateConstraintAdherence()
+    score = Math.min(100, score + constraintBonus)
+    console.log(
+      `   ✅ After Constraint Bonus: ${score.toFixed(1)}% (bonus: +${constraintBonus.toFixed(1)})`
+    )
+
+    // Step 5: Apply quality distribution factor (fine-tuning within 100%)
+    const qualityFactor = this.calculateQualityFactor()
+    score = Math.min(100, score * qualityFactor)
+    console.log(
+      `   🎯 Final Quality Score: ${score.toFixed(1)}% (factor: ${qualityFactor.toFixed(3)})`
+    )
 
     return Math.max(0, Math.round(score))
   }
 
-  private calculateConstraintBonuses(): number {
-    let bonus = 0
+  private calculateSessionCoverage(): { expectedSessions: number; actualSessions: number } {
+    let expectedSessions = 0
+    let actualSessions = 0
 
-    // Morning lectures bonus
-    if (this.constraints.prioritizeMorningLectures) {
-      const lectures = this.sessions.filter((s) => s.type === 'lecture')
-      const morningLectures = lectures.filter(
-        (s) => s.timeSlot.startTime >= 9 && s.timeSlot.startTime <= 11
-      )
-      if (lectures.length > 0) {
-        const ratio = morningLectures.length / lectures.length
-        bonus += ratio * 15
+    // Calculate expected sessions dynamically based on actual class-course mappings
+    for (const classItem of this.classes) {
+      const classCourses = this.getCoursesForClass(classItem)
+
+      for (const course of classCourses) {
+        // Each course should have 1 lecture + 1 seminar per class
+        expectedSessions += 2
+
+        // Count actual sessions for this class-course combination
+        const lectureCount = this.sessions.filter(
+          (s) => s.classId === classItem.id && s.courseId === course.id && s.type === 'lecture'
+        ).length
+
+        const seminarCount = this.sessions.filter(
+          (s) => s.classId === classItem.id && s.courseId === course.id && s.type === 'seminar'
+        ).length
+
+        actualSessions += Math.min(1, lectureCount) + Math.min(1, seminarCount)
       }
     }
 
-    // Back-to-back avoidance bonus
-    if (this.constraints.avoidBackToBackSessions) {
-      let violations = 0
-      for (const teacher of this.teachers) {
-        const teacherSessions = this.sessions.filter((s) => s.teacherId === teacher.id)
-        for (const day of this.DAYS) {
-          const daySessions = teacherSessions
-            .filter((s) => s.timeSlot.day === day)
-            .sort((a, b) => a.timeSlot.startTime - b.timeSlot.startTime)
+    console.log(`   📚 Expected Sessions: ${expectedSessions}`)
+    console.log(`   ✏️ Actual Sessions: ${actualSessions}`)
 
-          for (let i = 0; i < daySessions.length - 1; i++) {
-            if (daySessions[i].timeSlot.endTime === daySessions[i + 1].timeSlot.startTime) {
-              violations++
-            }
+    return { expectedSessions, actualSessions }
+  }
+
+  private calculateCoverageScore(expectedSessions: number, actualSessions: number): number {
+    if (expectedSessions === 0) return 0
+
+    // Base coverage score: 0-100% based on how many required sessions are scheduled
+    const coverageRatio = Math.min(1, actualSessions / expectedSessions)
+    const baseScore = coverageRatio * 100
+
+    // Penalty for over-scheduling (duplicate sessions)
+    const duplicateSessionCount = Math.max(0, this.sessions.length - expectedSessions)
+    const duplicatePenalty = Math.min(20, duplicateSessionCount * 2) // Max 20% penalty
+
+    return Math.max(0, baseScore - duplicatePenalty)
+  }
+
+  private calculateConflictPenalties(): number {
+    let totalPenalty = 0
+
+    const criticalConflicts = this.conflicts.filter((c) => c.severity === 'critical').length
+    const warningConflicts = this.conflicts.filter((c) => c.severity === 'warning').length
+    const suggestionConflicts = this.conflicts.filter((c) => c.severity === 'suggestion').length
+
+    // Heavy penalties for critical conflicts (missing sessions, double bookings)
+    totalPenalty += criticalConflicts * 15 // 15% per critical conflict
+
+    // Moderate penalties for warnings (constraint violations)
+    totalPenalty += warningConflicts * 5 // 5% per warning
+
+    // Light penalties for suggestions (optimization opportunities)
+    totalPenalty += suggestionConflicts * 1 // 1% per suggestion
+
+    console.log(`     🔴 Critical Conflicts: ${criticalConflicts} (-${criticalConflicts * 15}%)`)
+    console.log(`     🟡 Warning Conflicts: ${warningConflicts} (-${warningConflicts * 5}%)`)
+    console.log(`     🔵 Suggestions: ${suggestionConflicts} (-${suggestionConflicts * 1}%)`)
+
+    return Math.min(100, totalPenalty) // Cap at 100% penalty
+  }
+
+  private calculateConstraintAdherence(): number {
+    let totalBonus = 0
+    let maxPossibleBonus = 0
+
+    // Morning lectures preference (0-5% bonus)
+    if (this.constraints.prioritizeMorningLectures) {
+      maxPossibleBonus += 5
+      const morningBonus = this.calculateMorningLectureBonus()
+      totalBonus += morningBonus
+      console.log(`     🌅 Morning Lectures: +${morningBonus.toFixed(1)}%`)
+    }
+
+    // Back-to-back avoidance (0-8% bonus)
+    if (this.constraints.avoidBackToBackSessions) {
+      maxPossibleBonus += 8
+      const backToBackBonus = this.calculateBackToBackBonus()
+      totalBonus += backToBackBonus
+      console.log(`     ⏰ Back-to-back Avoidance: +${backToBackBonus.toFixed(1)}%`)
+    }
+
+    // Even distribution (0-6% bonus)
+    if (this.constraints.distributeEvenlyAcrossWeek) {
+      maxPossibleBonus += 6
+      const distributionBonus = this.calculateDistributionBonus()
+      totalBonus += distributionBonus
+      console.log(`     ⚖️ Even Distribution: +${distributionBonus.toFixed(1)}%`)
+    }
+
+    // Teacher workload balance (0-6% bonus)
+    maxPossibleBonus += 6
+    const workloadBonus = this.calculateWorkloadBalanceBonus()
+    totalBonus += workloadBonus
+    console.log(`     👥 Workload Balance: +${workloadBonus.toFixed(1)}%`)
+
+    // Time window adherence (0-5% bonus)
+    maxPossibleBonus += 5
+    const timeWindowBonus = this.calculateTimeWindowBonus()
+    totalBonus += timeWindowBonus
+    console.log(`     🕐 Time Window Adherence: +${timeWindowBonus.toFixed(1)}%`)
+
+    // Normalize bonus to prevent over-scoring
+    const normalizedBonus = maxPossibleBonus > 0 ? (totalBonus / maxPossibleBonus) * 15 : 0 // Max 15% total bonus
+
+    return Math.min(15, normalizedBonus)
+  }
+
+  private calculateMorningLectureBonus(): number {
+    const lectures = this.sessions.filter((s) => s.type === 'lecture')
+    if (lectures.length === 0) return 0
+
+    const morningLectures = lectures.filter(
+      (s) => s.timeSlot.startTime >= 9 && s.timeSlot.startTime <= 11
+    ).length
+
+    const ratio = morningLectures / lectures.length
+    return ratio * 5 // 0-5% bonus
+  }
+
+  private calculateBackToBackBonus(): number {
+    let totalViolations = 0
+    let totalPossibleViolations = 0
+
+    for (const teacher of this.teachers) {
+      const teacherSessions = this.sessions.filter((s) => s.teacherId === teacher.id)
+
+      for (const day of this.DAYS) {
+        const daySessions = teacherSessions
+          .filter((s) => s.timeSlot.day === day)
+          .sort((a, b) => a.timeSlot.startTime - b.timeSlot.startTime)
+
+        totalPossibleViolations += Math.max(0, daySessions.length - 1)
+
+        for (let i = 0; i < daySessions.length - 1; i++) {
+          if (daySessions[i].timeSlot.endTime === daySessions[i + 1].timeSlot.startTime) {
+            totalViolations++
           }
         }
       }
-      bonus += Math.max(0, 10 - violations * 2)
     }
 
-    // Even distribution bonus
-    if (this.constraints.distributeEvenlyAcrossWeek) {
-      const sessionsByDay = this.DAYS.map(
-        (day) => this.sessions.filter((s) => s.timeSlot.day === day).length
-      )
-      const avgSessions = this.sessions.length / this.DAYS.length
-      const variance =
-        sessionsByDay.reduce((sum, count) => sum + Math.pow(count - avgSessions, 2), 0) /
-        this.DAYS.length
+    if (totalPossibleViolations === 0) return 8 // Perfect if no possible violations
 
-      bonus += Math.max(0, 10 - variance)
-    }
-
-    return Math.min(25, bonus) // Cap bonus at 25 points
+    const avoidanceRatio = 1 - totalViolations / totalPossibleViolations
+    return avoidanceRatio * 8 // 0-8% bonus
   }
 
-  private calculateQualityDistributionBonus(): number {
-    // Analyze distribution of session qualities
-    const qualities = this.sessions.map(() => 'good') // Placeholder - would track actual qualities
-    const bestCount = qualities.filter((q) => q === 'best').length
-    const goodCount = qualities.filter((q) => q === 'good').length
-    const worstCount = qualities.filter((q) => q === 'worst').length
+  private calculateDistributionBonus(): number {
+    const sessionsByDay = this.DAYS.map(
+      (day) => this.sessions.filter((s) => s.timeSlot.day === day).length
+    )
 
-    let bonus = 0
-    bonus += (bestCount / this.sessions.length) * 10 // Up to 10 points for best sessions
-    bonus += (goodCount / this.sessions.length) * 5 // Up to 5 points for good sessions
-    bonus -= (worstCount / this.sessions.length) * 10 // Penalty for worst sessions
+    if (this.sessions.length === 0) return 6
 
-    return Math.max(-10, Math.min(15, bonus))
+    const avgSessionsPerDay = this.sessions.length / this.DAYS.length
+    const variance =
+      sessionsByDay.reduce((sum, count) => sum + Math.pow(count - avgSessionsPerDay, 2), 0) /
+      this.DAYS.length
+
+    // Lower variance = better distribution
+    const maxVariance = Math.pow(avgSessionsPerDay, 2) // Worst case: all sessions on one day
+    const distributionRatio = maxVariance > 0 ? Math.max(0, 1 - variance / maxVariance) : 1
+
+    return distributionRatio * 6 // 0-6% bonus
+  }
+
+  private calculateWorkloadBalanceBonus(): number {
+    if (this.teachers.length === 0) return 6
+
+    const workloads = this.teachers.map((teacher) => this.getTeacherWorkload(teacher))
+    const avgWorkload = workloads.reduce((sum, w) => sum + w, 0) / workloads.length
+
+    if (avgWorkload === 0) return 6
+
+    const variance =
+      workloads.reduce((sum, w) => sum + Math.pow(w - avgWorkload, 2), 0) / workloads.length
+
+    const maxVariance = Math.pow(avgWorkload, 2) // Worst case scenario
+    const balanceRatio = maxVariance > 0 ? Math.max(0, 1 - variance / maxVariance) : 1
+
+    return balanceRatio * 6 // 0-6% bonus
+  }
+
+  private calculateTimeWindowBonus(): number {
+    if (this.sessions.length === 0) return 5
+
+    const sessionsInPreferredWindow = this.sessions.filter(
+      (s) =>
+        s.timeSlot.startTime >= this.constraints.preferredStartTime &&
+        s.timeSlot.endTime <= this.constraints.preferredEndTime
+    ).length
+
+    const sessionsInAcceptableWindow = this.sessions.filter(
+      (s) =>
+        s.timeSlot.startTime >= this.constraints.preferredStartTime &&
+        s.timeSlot.endTime <= this.constraints.maxEndTime
+    ).length
+
+    const preferredRatio = sessionsInPreferredWindow / this.sessions.length
+    const acceptableRatio = sessionsInAcceptableWindow / this.sessions.length
+
+    // 5% for all in preferred, 3% for all in acceptable, scaled down for partial compliance
+    return preferredRatio * 5 + (acceptableRatio - preferredRatio) * 3
+  }
+
+  private calculateQualityFactor(): number {
+    // This factor fine-tunes the score based on overall session quality
+    // It should be between 0.8 and 1.0 to prevent over-scoring
+
+    let qualitySum = 0
+    let sessionCount = 0
+
+    // We would need to track session qualities during scheduling
+    // For now, let's calculate based on observable metrics
+
+    for (const session of this.sessions) {
+      let sessionQuality = 1.0
+
+      // Check if session is in preferred time window
+      if (
+        session.timeSlot.startTime >= this.constraints.preferredStartTime &&
+        session.timeSlot.endTime <= this.constraints.preferredEndTime
+      ) {
+        sessionQuality *= 1.0 // Perfect
+      } else if (
+        session.timeSlot.startTime >= this.constraints.preferredStartTime &&
+        session.timeSlot.endTime <= this.constraints.maxEndTime
+      ) {
+        sessionQuality *= 0.9 // Good
+      } else {
+        sessionQuality *= 0.7 // Poor
+      }
+
+      // Check for proper room type
+      const room = this.rooms.find((r) => r.id === session.roomId)
+      if (room && room.type === session.type) {
+        sessionQuality *= 1.0
+      } else {
+        sessionQuality *= 0.8
+      }
+
+      qualitySum += sessionQuality
+      sessionCount++
+    }
+
+    if (sessionCount === 0) return 1.0
+
+    const avgQuality = qualitySum / sessionCount
+
+    // Return a factor between 0.8 and 1.0
+    return Math.max(0.8, Math.min(1.0, avgQuality))
   }
 
   private getTeacherWorkload(teacher: TeacherWithCourses): number {
@@ -1253,9 +1634,15 @@ export class ScheduleAlgorithm {
   }
 
   private calculateUtilizationRate(): number {
-    const totalSlots = this.rooms.length * this.DAYS.length * this.TIME_SLOTS.length
+    const lectureRooms = this.rooms.filter((r) => r.type === 'lecture')
+    const seminarRooms = this.rooms.filter((r) => r.type === 'seminar')
+
+    const totalAvailableSlots =
+      (lectureRooms.length + seminarRooms.length) * this.DAYS.length * this.TIME_SLOTS.length
+
     const usedSlots = this.sessions.length
-    return totalSlots > 0 ? (usedSlots / totalSlots) * 100 : 0
+
+    return totalAvailableSlots > 0 ? (usedSlots / totalAvailableSlots) * 100 : 0
   }
 
   private logFinalSummary(result: GeneratedSchedule): void {

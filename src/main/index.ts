@@ -23,7 +23,7 @@ function createWindow(): void {
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
-      webSecurity: false, // Disable web security to bypass CSP issues
+      webSecurity: true,
       nodeIntegration: false,
       contextIsolation: true
     }
@@ -46,11 +46,55 @@ function createWindow(): void {
   }
 }
 
+function setupCSP() {
+  // Configure CSP headers for all requests
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          [
+            "default-src 'self'",
+            "connect-src 'self' https://generativelanguage.googleapis.com",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data: https:",
+            "font-src 'self' data:",
+            "media-src 'self'",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'"
+          ].join('; ')
+        ]
+      }
+    })
+  })
+
+  // Handle requests to Gemini API
+  session.defaultSession.webRequest.onBeforeSendHeaders(
+    {
+      urls: ['https://generativelanguage.googleapis.com/*']
+    },
+    (details, callback) => {
+      callback({
+        requestHeaders: {
+          ...details.requestHeaders,
+          // Origin: 'electron://app',
+          'User-Agent': 'ClassSync-Electron'
+        }
+      })
+    }
+  )
+}
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 app.whenReady().then(() => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
+
+  // csp
+  setupCSP()
 
   // Default open or close DevTools by F12 in development
   app.on('browser-window-created', (_, window) => {

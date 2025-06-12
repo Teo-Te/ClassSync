@@ -67,6 +67,26 @@ export interface Schedule {
   created_at: string
 }
 
+export interface ScheduleMetadata {
+  generatedAt: string
+  constraints: ScheduleConstraints
+  totalHours: number
+  utilizationRate: number
+  manualAssignments: number
+  automaticAssignments: number
+  optimizedBy?: string
+  aiOptimizationHistory?: {
+    timestamp: string
+    type: 'fix' | 'refine'
+    improvements: string[]
+    conflictsResolved: number
+  }[]
+  revalidatedAt?: string // Add this optional property
+  revalidationConflicts?: number // Add this too
+  revalidationScore?: number // And this
+  revalidationError?: string // And this for error cases
+}
+
 export interface ParsedSchedule extends Omit<Schedule, 'data'> {
   data: ScheduleData
 }
@@ -180,7 +200,7 @@ export interface TimeSlot {
 
 export interface ScheduleConflict {
   id: number
-  type: 'teacher_conflict' | 'room_conflict' | 'constraint_violation'
+  type: 'teacher_conflict' | 'room_conflict' | 'constraint_violation' | 'validation_error' // Add validation_error
   severity: 'critical' | 'warning' | 'suggestion'
   message: string
   affectedItems: string[]
@@ -221,6 +241,10 @@ export interface GeneratedSchedule {
     manualAssignments: number
     automaticAssignments: number
     optimizedBy?: string
+    revalidatedAt?: string
+    revalidationScore?: number
+    revalidationConflicts?: number
+    revalidationError?: string
     aiOptimizationHistory?: Array<{
       timestamp: string
       type: 'fix' | 'refine'

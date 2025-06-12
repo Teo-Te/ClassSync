@@ -41,15 +41,11 @@ const AISettings: React.FC<AISettingsProps> = ({ onClose }) => {
       await geminiService.refreshApiKey()
 
       // Test the connection with a simple query
-      const testResponse = await geminiService.chatQuery(
-        'Hello, can you respond with just "OK" to test the connection?',
-        [] // empty history for test
-      )
+      const testResponse = await geminiService.testConnection()
 
-      if (
-        testResponse.content.toLowerCase().includes('ok') ||
-        testResponse.content.toLowerCase().includes('hello')
-      ) {
+      console.log('Test response:', testResponse)
+
+      if (testResponse.success) {
         setConnectionStatus('success')
       } else {
         setConnectionStatus('error')

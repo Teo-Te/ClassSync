@@ -6,7 +6,10 @@ import {
   Teacher,
   Class,
   Room,
-  Course
+  Course,
+  TeacherWithCourses,
+  CourseWithTeacherDetails,
+  ScheduleConflict
 } from '@shared/types/database'
 
 export interface AIContext {
@@ -111,7 +114,7 @@ class GeminiService {
         // Reinitialize the service with new API key
         this.genAI = new GoogleGenerativeAI(this.apiKey)
         this.model = this.genAI.getGenerativeModel({
-          model: 'gemini-1.5-pro',
+          model: 'gemini-2.0-flash',
           generationConfig: {
             temperature: 0.7,
             topK: 40,
@@ -130,6 +133,61 @@ class GeminiService {
       this.apiKey = null
       this.genAI = null
       this.model = null
+    }
+  }
+
+  public async testConnection(): Promise<{ success: boolean; message: string }> {
+    if (!this.isAvailable()) {
+      return {
+        success: false,
+        message: 'AI service not available - please configure Gemini API key in settings'
+      }
+    }
+
+    try {
+      // Simple test without requiring context
+      const result = await this.model.generateContent(
+        'Hello, please respond with "OK" to test the connection.'
+      )
+      const response = await result.response
+      const text = response.text()
+
+      console.log('Connection test response:', text)
+
+      // Check if we got a valid response
+      if (text && text.trim().length > 0) {
+        return {
+          success: true,
+          message: `Connection successful! AI responded: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`
+        }
+      } else {
+        return {
+          success: false,
+          message: 'Received empty response from AI service'
+        }
+      }
+    } catch (error) {
+      console.error('Connection test failed:', error)
+
+      let errorMessage = 'Connection failed'
+      if (error instanceof Error) {
+        if (error.message.includes('API_KEY_INVALID') || error.message.includes('401')) {
+          errorMessage = 'Invalid API key - please check your Gemini API key'
+        } else if (error.message.includes('QUOTA_EXCEEDED') || error.message.includes('429')) {
+          errorMessage = 'API quota exceeded - please try again later'
+        } else if (error.message.includes('SAFETY')) {
+          errorMessage = 'Request blocked by safety filters'
+        } else if (error.message.includes('Failed to fetch') || error.message.includes('CSP')) {
+          errorMessage = 'Network error - please check your internet connection and CSP settings'
+        } else {
+          errorMessage = `Connection failed: ${error.message}`
+        }
+      }
+
+      return {
+        success: false,
+        message: errorMessage
+      }
     }
   }
 
@@ -169,7 +227,156 @@ class GeminiService {
     }
   }
 
-  // Schedule Optimization Methods
+  private revalidateWithScheduleAlgorithm(
+    optimizedSchedule: GeneratedSchedule,
+    context: AIContext
+  ): GeneratedSchedule {
+    try {
+      // Simple validation without using ScheduleAlgorithm
+      const newConflicts: ScheduleConflict[] = []
+
+      // 1. Check for time constraint violations
+      const maxEndTime = optimizedSchedule.metadata?.constraints?.maxEndTime || 19
+      const lateSessionsViolations = optimizedSchedule.sessions.filter(
+        (session) => session.timeSlot.endTime > maxEndTime
+      )
+
+      lateSessionsViolations.forEach((session) => {
+        newConflicts.push({
+          id: Date.now() + Math.random(),
+          type: 'constraint_violation',
+          severity: 'critical',
+          message: `${session.courseName} ${session.type} for ${session.className} ends at ${session.timeSlot.endTime}:00, exceeding maximum end time`,
+          affectedItems: [session.courseName, session.className],
+          suggestions: ['Move session to earlier time slot'],
+          timestamp: new Date().toISOString()
+        })
+      })
+
+      // 2. Check for session count validation per class
+      context.classes.forEach((classItem) => {
+        const classLectures = optimizedSchedule.sessions.filter(
+          (s) => s.classId === classItem.id && s.type === 'lecture'
+        ).length
+
+        const classSeminars = optimizedSchedule.sessions.filter(
+          (s) => s.classId === classItem.id && s.type === 'seminar'
+        ).length
+
+        // Get expected course count for this class
+        const classCourseIds = new Set(
+          optimizedSchedule.sessions
+            .filter((s) => s.classId === classItem.id)
+            .map((s) => s.courseId)
+        )
+        const expectedCourses = classCourseIds.size
+
+        if (classLectures < expectedCourses) {
+          newConflicts.push({
+            id: Date.now() + Math.random(),
+            type: 'constraint_violation',
+            severity: 'critical',
+            message: `Class ${classItem.name} missing ${expectedCourses - classLectures} lecture(s)`,
+            affectedItems: [classItem.name],
+            suggestions: ['Add missing lecture sessions'],
+            timestamp: new Date().toISOString()
+          })
+        }
+
+        if (classSeminars < expectedCourses) {
+          newConflicts.push({
+            id: Date.now() + Math.random(),
+            type: 'constraint_violation',
+            severity: 'critical',
+            message: `Class ${classItem.name} missing ${expectedCourses - classSeminars} seminar(s)`,
+            affectedItems: [classItem.name],
+            suggestions: ['Add missing seminar sessions'],
+            timestamp: new Date().toISOString()
+          })
+        }
+      })
+
+      // 3. Check for basic conflicts (same teacher, room, or class at same time)
+      for (let i = 0; i < optimizedSchedule.sessions.length; i++) {
+        for (let j = i + 1; j < optimizedSchedule.sessions.length; j++) {
+          const session1 = optimizedSchedule.sessions[i]
+          const session2 = optimizedSchedule.sessions[j]
+
+          if (
+            session1.timeSlot.day === session2.timeSlot.day &&
+            session1.timeSlot.startTime < session2.timeSlot.endTime &&
+            session2.timeSlot.startTime < session1.timeSlot.endTime
+          ) {
+            // Check for conflicts
+            if (session1.teacherId === session2.teacherId) {
+              newConflicts.push({
+                id: Date.now() + Math.random(),
+                type: 'teacher_conflict',
+                severity: 'critical',
+                message: `Teacher ${session1.teacherName} double-booked on ${session1.timeSlot.day}`,
+                affectedItems: [session1.teacherName, session1.courseName, session2.courseName],
+                suggestions: ['Reschedule one of the conflicting sessions'],
+                timestamp: new Date().toISOString()
+              })
+            }
+
+            if (session1.roomId === session2.roomId) {
+              newConflicts.push({
+                id: Date.now() + Math.random(),
+                type: 'room_conflict',
+                severity: 'critical',
+                message: `Room ${session1.roomName} double-booked on ${session1.timeSlot.day}`,
+                affectedItems: [session1.roomName, session1.courseName, session2.courseName],
+                suggestions: ['Assign different room to one session'],
+                timestamp: new Date().toISOString()
+              })
+            }
+
+            if (session1.classId === session2.classId) {
+              newConflicts.push({
+                id: Date.now() + Math.random(),
+                type: 'constraint_violation',
+                severity: 'critical',
+                message: `Class ${session1.className} double-booked on ${session1.timeSlot.day}`,
+                affectedItems: [session1.className, session1.courseName, session2.courseName],
+                suggestions: ['Reschedule one of the conflicting sessions'],
+                timestamp: new Date().toISOString()
+              })
+            }
+          }
+        }
+      }
+
+      // Calculate new score based on conflicts
+      const criticalConflicts = newConflicts.filter((c) => c.severity === 'critical').length
+      const warningConflicts = newConflicts.filter((c) => c.severity === 'warning').length
+      const conflictPenalty = criticalConflicts * 15 + warningConflicts * 5
+      const newScore = Math.max(0, optimizedSchedule.score - conflictPenalty)
+
+      return {
+        ...optimizedSchedule,
+        conflicts: newConflicts,
+        score: newScore,
+        metadata: {
+          ...optimizedSchedule.metadata,
+          revalidatedAt: new Date().toISOString(),
+          revalidationConflicts: newConflicts.length,
+          revalidationScore: newScore
+        }
+      }
+    } catch (error) {
+      console.error('❌ Failed to revalidate schedule:', error)
+
+      return {
+        ...optimizedSchedule,
+        metadata: {
+          ...optimizedSchedule.metadata,
+          revalidationError: error instanceof Error ? error.message : 'Unknown validation error'
+        }
+      }
+    }
+  }
+
   public async optimizeSchedule(
     request: ScheduleOptimizationRequest
   ): Promise<ScheduleOptimizationResponse> {
@@ -194,7 +401,36 @@ class GeminiService {
       const response = await result.response
       const text = response.text()
 
-      return this.parseOptimizationResponse(text, request)
+      const optimizationResult = this.parseOptimizationResponse(text, request)
+
+      // 🎯 IMPROVED: Use ScheduleAlgorithm's existing validation
+      if (optimizationResult.success && optimizationResult.optimizedSchedule) {
+        const revalidatedSchedule = this.revalidateWithScheduleAlgorithm(
+          optimizationResult.optimizedSchedule,
+          request.context
+        )
+
+        optimizationResult.optimizedSchedule = revalidatedSchedule
+
+        // The validation results are already included in the schedule's conflicts
+        const newConflictsCount = revalidatedSchedule.conflicts.length
+        const originalConflictsCount = request.schedule.conflicts.length
+
+        if (newConflictsCount > originalConflictsCount) {
+          optimizationResult.suggestions.push(
+            `⚠️ Post-optimization validation found ${newConflictsCount - originalConflictsCount} new issues`
+          )
+          optimizationResult.reasoning += `\n\nValidation revealed ${newConflictsCount - originalConflictsCount} additional issues that need attention.`
+        } else if (newConflictsCount < originalConflictsCount) {
+          optimizationResult.suggestions.push(
+            `✅ AI optimization resolved ${originalConflictsCount - newConflictsCount} conflicts`
+          )
+        } else {
+          optimizationResult.suggestions.push('✅ Schedule passed post-optimization validation')
+        }
+      }
+
+      return optimizationResult
     } catch (error) {
       console.error('❌ Schedule optimization failed:', error)
 
@@ -279,8 +515,32 @@ class GeminiService {
     }
   }
 
+  // Update the buildOptimizationPrompt method in geminiService.ts
+
   private buildOptimizationPrompt(request: ScheduleOptimizationRequest): string {
     const { schedule, context, optimizationType, specificIssues, preferences } = request
+
+    // 🎯 NEW: Calculate expected session counts per class
+    const classSessionAnalysis = context.classes.map((classItem) => {
+      const classCourses = context.courses.filter((course) =>
+        schedule.sessions.some((s) => s.classId === classItem.id && s.courseId === course.id)
+      )
+      const expectedCourses = classCourses.length
+      const actualLectures = schedule.sessions.filter(
+        (s) => s.classId === classItem.id && s.type === 'lecture'
+      ).length
+      const actualSeminars = schedule.sessions.filter(
+        (s) => s.classId === classItem.id && s.type === 'seminar'
+      ).length
+
+      return {
+        className: classItem.name,
+        expectedCourses,
+        actualLectures,
+        actualSeminars,
+        isValid: actualLectures === expectedCourses && actualSeminars === expectedCourses
+      }
+    })
 
     const algorithmLogic = `
 # ClassSync Scheduling Algorithm Logic
@@ -298,6 +558,20 @@ class GeminiService {
 - Back-to-Back: ${context.schedule.metadata?.constraints?.avoidBackToBackSessions ? 'Avoid' : 'Allow'}
 - Even Distribution: ${context.schedule.metadata?.constraints?.distributeEvenlyAcrossWeek ? 'Yes' : 'No'}
 
+## CRITICAL: Session Count Validation
+Each class must have:
+- Number of lectures = Number of assigned courses
+- Number of seminars = Number of assigned courses
+- Each course must have exactly 1 lecture + 1 seminar per class
+
+## Current Session Count Analysis:
+${classSessionAnalysis
+  .map(
+    (analysis) =>
+      `- ${analysis.className}: ${analysis.expectedCourses} courses → Need ${analysis.expectedCourses}L + ${analysis.expectedCourses}S, Got ${analysis.actualLectures}L + ${analysis.actualSeminars}S ${analysis.isValid ? '✅' : '❌'}`
+  )
+  .join('\n')}
+
 ## Scoring Factors:
 - Time slot preferences (+40 for preferred, -30 for late)
 - Morning lecture bonus (+30 for 9AM, +20 for 9-11AM)
@@ -305,6 +579,7 @@ class GeminiService {
 - Room diversity bonus (+35 for new rooms, -20 for overused)
 - Teacher workload balance (+20 for balanced, -40 for overloaded)
 - Even distribution (+15 for balanced days, -20 for heavy days)
+- Session count compliance (CRITICAL: -50 per missing session)
 `
 
     return `You are ClassSync's AI Schedule Optimizer. Your task is to ${optimizationType === 'fix' ? 'fix critical issues' : 'refine and improve'} the given academic schedule.
@@ -341,32 +616,46 @@ ${preferences?.customConstraints || 'None specified'}
 
 ## Your Task:
 1. Analyze the schedule using ClassSync's algorithm logic
-2. Identify improvement opportunities following the priority system
-3. Suggest specific session modifications that would:
+2. **PRIORITY: Ensure each class has correct number of lectures and seminars**
+3. Identify improvement opportunities following the priority system
+4. Suggest specific session modifications that would:
+   - Resolve session count imbalances (CRITICAL)
    - Resolve conflicts (if any)
    - Improve overall score
    - Better align with constraints
    - Balance teacher workloads
    - Optimize room utilization
 
+**IMPORTANT:** Pay special attention to the session count analysis above. Any class with incorrect lecture/seminar counts needs immediate correction.
+
 Respond with a JSON object containing:
 {
-  "analysis": "Detailed analysis of current schedule quality",
+  "analysis": "Detailed analysis including session count validation",
   "improvements": [
     {
       "sessionId": "session_id",
       "currentSlot": "Monday 9:00-11:00",
       "suggestedSlot": "Tuesday 11:00-13:00",
       "reason": "Explanation using algorithm logic",
-      "scoreImprovement": 25
+      "scoreImprovement": 25,
+      "priority": "critical|high|medium|low"
     }
   ],
-  "reasoning": "Overall optimization strategy",
+  "missingSessionsToAdd": [
+    {
+      "courseName": "Course Name",
+      "className": "Class Name", 
+      "sessionType": "lecture|seminar",
+      "suggestedSlot": "Wednesday 11:00-13:00",
+      "reason": "Missing required session"
+    }
+  ],
+  "reasoning": "Overall optimization strategy focusing on session count compliance",
   "expectedScore": 85,
-  "summary": "Brief summary of changes"
+  "summary": "Brief summary prioritizing session count corrections"
 }
 
-Focus on realistic improvements that follow ClassSync's proven algorithm logic.`
+Focus on session count compliance first, then realistic improvements that follow ClassSync's proven algorithm logic.`
   }
 
   private buildChatPrompt(query: string, history: AIMessage[]): string {

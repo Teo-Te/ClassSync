@@ -1,6 +1,10 @@
 // src/renderer/src/components/schedules/ai/AIChatbot.tsx
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import rehypeHighlight from 'rehype-highlight'
+import 'highlight.js/styles/github-dark.css' // Add dark theme for code blocks
 import {
   Send,
   Bot,
@@ -35,6 +39,128 @@ interface AIChatbotProps {
   classes: Class[]
   rooms: Room[]
   courses: Course[]
+}
+
+// Custom components for markdown rendering
+const MarkdownComponents = {
+  // Custom paragraph component
+  p: ({ children, ...props }: any) => (
+    <p className="mb-2 last:mb-0" {...props}>
+      {children}
+    </p>
+  ),
+  // Custom heading components
+  h1: ({ children, ...props }: any) => (
+    <h1 className="text-lg font-bold mb-2 text-white" {...props}>
+      {children}
+    </h1>
+  ),
+  h2: ({ children, ...props }: any) => (
+    <h2 className="text-md font-semibold mb-2 text-white" {...props}>
+      {children}
+    </h2>
+  ),
+  h3: ({ children, ...props }: any) => (
+    <h3 className="text-sm font-medium mb-1 text-white" {...props}>
+      {children}
+    </h3>
+  ),
+  // Custom list components
+  ul: ({ children, ...props }: any) => (
+    <ul className="list-disc list-inside mb-2 space-y-1" {...props}>
+      {children}
+    </ul>
+  ),
+  ol: ({ children, ...props }: any) => (
+    <ol className="list-decimal list-inside mb-2 space-y-1" {...props}>
+      {children}
+    </ol>
+  ),
+  li: ({ children, ...props }: any) => (
+    <li className="text-sm" {...props}>
+      {children}
+    </li>
+  ),
+  // Custom code components
+  code: ({ inline, className, children, ...props }: any) => {
+    if (inline) {
+      return (
+        <code
+          className="bg-white/20 text-lime-300 px-1 py-0.5 rounded text-xs font-mono"
+          {...props}
+        >
+          {children}
+        </code>
+      )
+    }
+    return (
+      <code
+        className={`block bg-white/10 p-2 rounded-md text-xs font-mono overflow-x-auto ${className}`}
+        {...props}
+      >
+        {children}
+      </code>
+    )
+  },
+  // Custom pre component for code blocks
+  pre: ({ children, ...props }: any) => (
+    <pre className="bg-white/10 p-3 rounded-md overflow-x-auto mb-2" {...props}>
+      {children}
+    </pre>
+  ),
+  // Custom blockquote
+  blockquote: ({ children, ...props }: any) => (
+    <blockquote className="border-l-4 border-lime-500 pl-4 italic text-white/80 mb-2" {...props}>
+      {children}
+    </blockquote>
+  ),
+  // Custom table components
+  table: ({ children, ...props }: any) => (
+    <div className="overflow-x-auto mb-2">
+      <table className="min-w-full border border-white/20 rounded" {...props}>
+        {children}
+      </table>
+    </div>
+  ),
+  thead: ({ children, ...props }: any) => (
+    <thead className="bg-white/10" {...props}>
+      {children}
+    </thead>
+  ),
+  th: ({ children, ...props }: any) => (
+    <th className="border border-white/20 px-2 py-1 text-left text-xs font-medium" {...props}>
+      {children}
+    </th>
+  ),
+  td: ({ children, ...props }: any) => (
+    <td className="border border-white/20 px-2 py-1 text-xs" {...props}>
+      {children}
+    </td>
+  ),
+  // Custom strong/bold
+  strong: ({ children, ...props }: any) => (
+    <strong className="font-semibold text-white" {...props}>
+      {children}
+    </strong>
+  ),
+  // Custom emphasis/italic
+  em: ({ children, ...props }: any) => (
+    <em className="italic text-white/90" {...props}>
+      {children}
+    </em>
+  ),
+  // Custom link
+  a: ({ children, href, ...props }: any) => (
+    <a
+      href={href}
+      className="text-lime-400 hover:text-lime-300 underline"
+      target="_blank"
+      rel="noopener noreferrer"
+      {...props}
+    >
+      {children}
+    </a>
+  )
 }
 
 const AIChatbot: React.FC<AIChatbotProps> = ({
@@ -174,7 +300,7 @@ What would you like to know about your schedule?`,
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
       className={`fixed bottom-4 right-4 ${
-        isMinimized ? 'w-80 h-16' : 'w-96 h-[600px]'
+        isMinimized ? 'w-80 h-24' : 'w-96 h-[600px]'
       } bg-black border border-white/20 rounded-lg shadow-2xl z-50 overflow-hidden transition-all duration-300`}
     >
       <div className="flex flex-col h-full">
@@ -232,7 +358,7 @@ What would you like to know about your schedule?`,
 
             {/* Messages - Scrollable area */}
             <div className="flex-1 overflow-hidden">
-              <div className="h-full overflow-y-auto p-4 space-y-4">
+              <div className="h-full overflow-y-auto no-scrollbar p-4 space-y-4">
                 <AnimatePresence>
                   {messages.map((message) => (
                     <motion.div
@@ -262,9 +388,21 @@ What would you like to know about your schedule?`,
                               : 'bg-white/10 text-white'
                           }`}
                         >
-                          <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                            {message.content}
-                          </div>
+                          {message.type === 'assistant' ? (
+                            // Render AI messages with Markdown
+                            <div className="prose prose-invert prose-sm max-w-none">
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                rehypePlugins={[rehypeHighlight]}
+                                components={MarkdownComponents}
+                              >
+                                {message.content}
+                              </ReactMarkdown>
+                            </div>
+                          ) : (
+                            // Render user messages as plain text
+                            <div className="text-sm leading-relaxed">{message.content}</div>
+                          )}
                         </div>
                         <div className="text-xs text-white/50 mt-1">
                           {formatTimestamp(message.timestamp)}

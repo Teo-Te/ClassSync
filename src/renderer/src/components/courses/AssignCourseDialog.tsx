@@ -43,7 +43,7 @@ export const AssignCourseDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="bg-black border-white/30 text-white max-w-2xl">
+      <DialogContent className="bg-black border-white/30 text-white min-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-white">Assign Course to Class</DialogTitle>
         </DialogHeader>
@@ -72,7 +72,7 @@ export const AssignCourseDialog = ({
               Available Courses ({filteredCourses.length})
             </h3>
 
-            <div className="max-h-60 overflow-y-auto space-y-2">
+            <div className="max-h-60 overflow-y-auto no-scrollbar space-y-2">
               {filteredCourses.length === 0 ? (
                 <div className="text-center py-6 text-white/50">
                   {searchTerm
@@ -84,7 +84,7 @@ export const AssignCourseDialog = ({
                   <motion.div
                     key={course.id}
                     whileHover={{ x: 4 }}
-                    className={`flex items-center justify-between p-4 rounded-lg border cursor-pointer transition-all ${
+                    className={`flex items-center justify-between w-[97%] p-4 rounded-lg border cursor-pointer transition-all ${
                       selectedCourse?.id === course.id
                         ? 'bg-lime-500/20 border-lime-500/50'
                         : 'bg-white/5 border-white/10 hover:bg-white/10'

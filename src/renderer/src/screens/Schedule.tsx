@@ -960,7 +960,7 @@ const Schedule = () => {
       </Dialog>
 
       <Dialog open={showAIOptimizer} onOpenChange={setShowAIOptimizer}>
-        <DialogContent className="bg-black border-white/30 text-white max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="bg-black border-white/30 text-white min-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-white flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-purple-400" />
