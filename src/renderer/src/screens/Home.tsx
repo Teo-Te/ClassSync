@@ -26,8 +26,7 @@ const Home = () => {
     teachers: 0,
     rooms: 0,
     classes: 0,
-    courses: 0,
-    schedules: 0
+    courses: 0
   })
   const [isAIConfigured, setIsAIConfigured] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -56,8 +55,7 @@ const Home = () => {
         teachers: teachers.length,
         rooms: rooms.length,
         classes: classes.length,
-        courses: courses.length,
-        schedules: 0 // TODO: Implement saved schedules count
+        courses: courses.length
       })
     } catch (error) {
       console.error('Failed to load dashboard data:', error)
@@ -110,13 +108,6 @@ const Home = () => {
       color: 'green',
       to: '/about#start'
     }
-  ]
-
-  const recentActivity = [
-    { type: 'schedule', message: 'Schedule generated for Fall 2025', time: '2 hours ago' },
-    { type: 'teacher', message: 'Added 3 new teachers', time: '1 day ago' },
-    { type: 'course', message: 'Updated Mathematics curriculum', time: '2 days ago' },
-    { type: 'room', message: 'Added Lecture Hall C', time: '3 days ago' }
   ]
 
   const getColorClasses = (color: string) => {
@@ -203,30 +194,6 @@ const Home = () => {
                 </Button>
               </motion.div>
             </div>
-
-            {/* Stats Cards */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.8 }}
-              className="grid grid-cols-2 gap-4"
-            >
-              <Card className="bg-white/10 border-white/20 backdrop-blur-sm">
-                <CardContent className="p-4 text-center">
-                  <TrendingUp className="w-8 h-8 text-lime-400 mx-auto mb-2" />
-                  <div className="text-2xl font-bold text-white">{stats.schedules}</div>
-                  <div className="text-white/70 text-sm">Schedules Generated</div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-white/10 border-white/20 backdrop-blur-sm">
-                <CardContent className="p-4 text-center">
-                  <Clock className="w-8 h-8 text-blue-400 mx-auto mb-2" />
-                  <div className="text-2xl font-bold text-white">98%</div>
-                  <div className="text-white/70 text-sm">Efficiency Rate</div>
-                </CardContent>
-              </Card>
-            </motion.div>
           </div>
         </div>
       </motion.div>
@@ -377,47 +344,6 @@ const Home = () => {
               </motion.div>
             ))}
           </div>
-        </motion.div>
-
-        {/* Recent Activity */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.8 }}
-        >
-          <h2 className="text-3xl font-bold text-white mb-8">Recent Activity</h2>
-
-          <Card className="bg-black border-white/20">
-            <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2">
-                <Clock className="w-5 h-5" />
-                System Activity
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {recentActivity.map((activity, index) => (
-                  <div key={index} className="flex items-center gap-4 p-3 bg-white/5 rounded-lg">
-                    <div
-                      className={`w-2 h-2 rounded-full ${
-                        activity.type === 'schedule'
-                          ? 'bg-lime-400'
-                          : activity.type === 'teacher'
-                            ? 'bg-blue-400'
-                            : activity.type === 'course'
-                              ? 'bg-purple-400'
-                              : 'bg-green-400'
-                      }`}
-                    ></div>
-                    <div className="flex-1">
-                      <div className="text-white">{activity.message}</div>
-                      <div className="text-white/50 text-sm">{activity.time}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
         </motion.div>
       </div>
     </div>

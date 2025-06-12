@@ -1,4 +1,5 @@
 import Header from '@renderer/components/header'
+import Footer from '@renderer/components/footer'
 import { ReactNode } from 'react'
 
 interface LayoutProps {
@@ -12,9 +13,7 @@ function Layout({ children }: LayoutProps): React.JSX.Element {
 
       <main className="min-h-screen">{children}</main>
 
-      <footer className="bg-gray-100 p-2 text-center text-sm text-gray-600 w-full">
-        ClassSync © {new Date().getFullYear()}
-      </footer>
+      <Footer />
     </div>
   )
 }
