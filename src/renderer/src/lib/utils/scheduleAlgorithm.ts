@@ -170,7 +170,7 @@ export class ScheduleAlgorithm {
     console.log('🔍 Validating manual assignments...')
 
     for (const course of this.courses) {
-      if (course.manualAssignments?.length > 0) {
+      if (course.manualAssignments && course.manualAssignments.length > 0) {
         for (const assignment of course.manualAssignments) {
           const teacher = this.teachers.find((t) => t.id === assignment.teacherId)
           if (!teacher) {

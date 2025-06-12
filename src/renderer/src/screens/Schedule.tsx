@@ -20,13 +20,10 @@ import {
   ScheduleConstraints,
   GeneratedSchedule,
   ScheduleSession,
-  ScheduleConflict,
   TeacherWithCourses,
   Room,
   Class,
   CourseWithTeacherDetails,
-  Course,
-  CourseType,
   SavedSchedule
 } from '@shared/types/database'
 import { ScheduleNavigation } from '@renderer/components/schedules/ScheduleNavigation'
@@ -207,7 +204,7 @@ const Schedule = () => {
 
       // Log manual assignments for debugging
       transformedCourses.forEach((course) => {
-        if (course.manualAssignments.length > 0) {
+        if (course.manualAssignments && course.manualAssignments.length > 0) {
           console.log(`   Manual assignments for ${course.name}:`, course.manualAssignments)
         }
       })

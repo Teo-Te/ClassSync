@@ -292,7 +292,7 @@ export interface ManualTeacherAssignment {
 }
 
 export interface CourseWithTeacherDetails extends Course {
-  manualAssignments: ManualTeacherAssignment[] // Use a different property name
+  manualAssignments?: ManualTeacherAssignment[] // Use a different property name
   lectureTeacher?: Teacher // Keep these for backward compatibility
   seminarTeacher?: Teacher
 }

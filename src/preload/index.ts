@@ -5,13 +5,12 @@ import {
   ClassUpdateDto,
   TeacherCreateDto,
   TeacherUpdateDto,
-  CourseCreateDto,
   ScheduleCreateDto,
   CreateRoomDto,
   UpdateRoomDto,
   UpdateSettingsDto
 } from '@shared/types/dto'
-import { GeneratedSchedule, Room, RoomType } from '@shared/types/database'
+import { GeneratedSchedule, RoomType } from '@shared/types/database'
 
 const api = {
   classes: {
